@@ -20,25 +20,29 @@ import sys
 import urllib
 from __main__ import vtk, qt, ctk, slicer
 
-from TCIABrowserLib import APISettingsPopup, clinicalDataPopup, TCIAClient
+import logging
+
+from IDCBrowserLib import APISettingsPopup, clinicalDataPopup, IDCClient
+#from IDCBrowserLib import IDCClient
+
 
 from slicer.ScriptedLoadableModule import *
 
 #
-# TCIABrowser
+# IDCBrowser
 #
 
-class TCIABrowser(ScriptedLoadableModule):
+class IDCBrowser(ScriptedLoadableModule):
   def __init__(self, parent):
-    parent.title = "TCIA Browser"
+    parent.title = "IDC Browser"
     parent.categories = ["Informatics"]
     parent.dependencies = []
     parent.contributors = ["Alireza Mehrtash (SPL, BWH), Andrey Fedorov (SPL, BWH)"]
-    parent.helpText = """ Connect to TCIA web archive and get a list of all available collections.
+    parent.helpText = """ Connect to IDC web archive and get a list of all available collections.
     From collection selector choose a collection and the patients table will be populated. Click on a patient and
     the studies for the patient will be presented. Do the same for studies. Finally choose a series from the series
     table and download the images from the server by pressing the "Download and Load" button.
-    See <a href=\"http://wiki.slicer.org/slicerWiki/index.php/Documentation/Nightly/Extensions/TCIABrowser\">
+    See <a href=\"http://wiki.slicer.org/slicerWiki/index.php/Documentation/Nightly/Extensions/IDCBrowser\">
     the documentation</a> for more information."""
     parent.acknowledgementText = """ <img src=':Logos/QIICR.png'><br><br>
     Supported by NIH U24 CA180918 (PIs Kikinis and Fedorov)
@@ -52,22 +56,22 @@ class TCIABrowser(ScriptedLoadableModule):
       slicer.selfTests
     except AttributeError:
       slicer.selfTests = {}
-    slicer.selfTests['TCIABrowser'] = self.runTest
+    slicer.selfTests['IDCBrowser'] = self.runTest
 
   def runTest(self):
-    tester = TCIABrowserTest()
+    tester = IDCBrowserTest()
     tester.runTest()
 
 #
-# qTCIABrowserWidget
+# qIDCBrowserWidget
 #
 
-class TCIABrowserWidget(ScriptedLoadableModuleWidget):
+class IDCBrowserWidget(ScriptedLoadableModuleWidget):
   def __init__(self, parent=None):
     self.loadToScene = False
 
     self.browserWidget = qt.QWidget()
-    self.browserWidget.setWindowTitle('TCIA Browser')
+    self.browserWidget.setWindowTitle('IDC Browser')
 
     self.initialConnection = False
     self.seriesTableRowCount = 0
@@ -82,21 +86,23 @@ class TCIABrowserWidget(ScriptedLoadableModuleWidget):
 
     self.downloadProgressBarWidgets = []
 
-    # self.progress.setWindowTitle("TCIA Browser")
+    # self.progress.setWindowTitle("IDC Browser")
     # setup API key
     self.slicerApiKey = 'f88ff53d-882b-4c0d-b60c-0fb560e82cf1'
     self.currentAPIKey = self.slicerApiKey
     item = qt.QStandardItem()
 
-    # Put the files downloaded from TCIA in the DICOM database folder by default.
+    # Put the files downloaded from IDC in the DICOM database folder by default.
     # This makes downloaded files relocatable along with the DICOM database in
     # recent Slicer versions.
     databaseDirectory = slicer.dicomDatabase.databaseDirectory
-    self.storagePath = databaseDirectory + "/TCIALocal/"
+    self.storagePath = databaseDirectory + "/IDCLocal/"
+    logging.debug("IDC downloaded data storage path: " + self.storagePath)
     if not os.path.exists(self.storagePath):
       os.makedirs(self.storagePath)
 
     self.cachePath = self.storagePath + "/ServerResponseCache/"
+    logging.debug("IDC cache path: " + self.cachePath)
     self.downloadedSeriesArchiveFile = self.storagePath + 'archive.p'
     if os.path.isfile(self.downloadedSeriesArchiveFile):
       print("Reading "+self.downloadedSeriesArchiveFile)
@@ -111,7 +117,7 @@ class TCIABrowserWidget(ScriptedLoadableModuleWidget):
 
     if not os.path.exists(self.cachePath):
       os.makedirs(self.cachePath)
-    self.useCacheFlag = True
+    self.useCacheFlag = False
 
     if not parent:
       self.parent = slicer.qMRMLWidget()
@@ -132,14 +138,14 @@ class TCIABrowserWidget(ScriptedLoadableModuleWidget):
 
   def setup(self):
     # Instantiate and connect widgets ...
-    if 'TCIABrowser' in slicer.util.moduleNames():
-      self.modulePath = slicer.modules.tciabrowser.path.replace("TCIABrowser.py", "")
+    if 'IDCBrowser' in slicer.util.moduleNames():
+      self.modulePath = slicer.modules.idcbrowser.path.replace("IDCBrowser.py", "")
     else:
       self.modulePath = '.'
     self.reportIcon = qt.QIcon(self.modulePath + '/Resources/Icons/report.png')
     downloadAndIndexIcon = qt.QIcon(self.modulePath + '/Resources/Icons/downloadAndIndex.png')
     downloadAndLoadIcon = qt.QIcon(self.modulePath + '/Resources/Icons/downloadAndLoad.png')
-    browserIcon = qt.QIcon(self.modulePath + '/Resources/Icons/TCIABrowser.png')
+    browserIcon = qt.QIcon(self.modulePath + '/Resources/Icons/IDCBrowser.png')
     cancelIcon = qt.QIcon(self.modulePath + '/Resources/Icons/cancel.png')
     self.downloadIcon = qt.QIcon(self.modulePath + '/Resources/Icons/download.png')
     self.storedlIcon = qt.QIcon(self.modulePath + '/Resources/Icons/stored.png')
@@ -159,7 +165,7 @@ class TCIABrowserWidget(ScriptedLoadableModuleWidget):
     #  your module to users)
     self.reloadButton = qt.QPushButton("Reload")
     self.reloadButton.toolTip = "Reload this module."
-    self.reloadButton.name = "TCIABrowser Reload"
+    self.reloadButton.name = "IDCBrowser Reload"
     reloadFormLayout.addWidget(self.reloadButton)
     self.reloadButton.connect('clicked()', self.onReload)
 
@@ -175,7 +181,7 @@ class TCIABrowserWidget(ScriptedLoadableModuleWidget):
     # Browser Area
     #
     browserCollapsibleButton = ctk.ctkCollapsibleButton()
-    browserCollapsibleButton.text = "TCIA Browser"
+    browserCollapsibleButton.text = "IDC Browser"
     self.layout.addWidget(browserCollapsibleButton)
     browserLayout = qt.QVBoxLayout(browserCollapsibleButton)
 
@@ -225,10 +231,10 @@ class TCIABrowserWidget(ScriptedLoadableModuleWidget):
     would populate tables based on saved data on disk.'''
 
     collectionsFormLayout.addWidget(self.useCacheCeckBox)
-    self.useCacheCeckBox.setCheckState(True)
+    self.useCacheCeckBox.setCheckState(False)
     self.useCacheCeckBox.setTristate(False)
     collectionsFormLayout.addStretch(4)
-    logoLabelText = "<img src='" + self.modulePath + "/Resources/Logos/logo-vertical.png'" + ">"
+    logoLabelText = "IDC"
     self.logoLabel = qt.QLabel(logoLabelText)
     collectionsFormLayout.addWidget(self.logoLabel)
 
@@ -245,9 +251,8 @@ class TCIABrowserWidget(ScriptedLoadableModuleWidget):
     # patientsVerticalLayout = qt.QVBoxLayout(patientsExpdableArea)
     self.patientsTableWidget = qt.QTableWidget()
     self.patientsModel = qt.QStandardItemModel()
-    self.patientsTableHeaderLabels = ['Patient ID', 'Patient Name', 'Patient BirthDate',
-                      'Patient Sex', 'Ethnic Group', 'Clinical Data']
-    self.patientsTableWidget.setColumnCount(6)
+    self.patientsTableHeaderLabels = ['Patient ID', 'Patient Sex']
+    self.patientsTableWidget.setColumnCount(2)
     self.patientsTableWidget.sortingEnabled = True
     self.patientsTableWidget.setHorizontalHeaderLabels(self.patientsTableHeaderLabels)
     self.patientsTableWidgetHeader = self.patientsTableWidget.horizontalHeader()
@@ -277,9 +282,8 @@ class TCIABrowserWidget(ScriptedLoadableModuleWidget):
     self.studiesTableWidget = qt.QTableWidget()
     self.studiesTableWidget.setCornerButtonEnabled(True)
     self.studiesModel = qt.QStandardItemModel()
-    self.studiesTableHeaderLabels = ['Study Instance UID', 'Study Date', 'Study Description',
-                     'Admitting Diagnosis Description', 'Study ID', 'Patient Age', 'Series Count']
-    self.studiesTableWidget.setColumnCount(7)
+    self.studiesTableHeaderLabels = ['Study Instance UID', 'Study Date', 'Study Description', 'Series Count']
+    self.studiesTableWidget.setColumnCount(4)
     self.studiesTableWidget.sortingEnabled = True
     self.studiesTableWidget.hideColumn(0)
     self.studiesTableWidget.setHorizontalHeaderLabels(self.studiesTableHeaderLabels)
@@ -324,13 +328,13 @@ class TCIABrowserWidget(ScriptedLoadableModuleWidget):
     seriesVBoxLayout2 = qt.QVBoxLayout(seriesExpdableArea)
     self.seriesTableWidget = qt.QTableWidget()
     # self.seriesModel = qt.QStandardItemModel()
-    self.seriesTableWidget.setColumnCount(13)
+    self.seriesTableWidget.setColumnCount(10)
     self.seriesTableWidget.sortingEnabled = True
     self.seriesTableWidget.hideColumn(0)
     self.seriesTableHeaderLabels = ['Series Instance UID', 'Status', 'Modality',
-                    'Protocol Name', 'Series Date', 'Series Description', 'Body Part Examined',
-                    'Series Number', 'Annotation Flag', 'Manufacturer',
-                    'Manufacturer Model Name', 'Software Versions', 'Image Count']
+                    'Series Date', 'Series Description', 'Body Part Examined',
+                    'Series Number','Manufacturer',
+                    'Manufacturer Model Name','Image Count']
     self.seriesTableWidget.setHorizontalHeaderLabels(self.seriesTableHeaderLabels)
     self.seriesTableWidget.resizeColumnsToContents()
     seriesVBoxLayout2.addWidget(self.seriesTableWidget)
@@ -467,7 +471,7 @@ class TCIABrowserWidget(ScriptedLoadableModuleWidget):
     self.apiSelectionComboBox = qt.QComboBox()
     self.apiSelectionComboBox.addItem('Slicer API')
     settings = qt.QSettings()
-    settings.beginGroup("TCIABrowser/API-Keys")
+    settings.beginGroup("IDCBrowser/API-Keys")
     self.userApiNames = settings.childKeys()
 
     for api in self.userApiNames:
@@ -475,7 +479,7 @@ class TCIABrowserWidget(ScriptedLoadableModuleWidget):
     settings.endGroup()
 
     self.connectButton = qt.QPushButton("Connect")
-    self.connectButton.toolTip = "Connect to TCIA Server."
+    self.connectButton.toolTip = "Connect to IDC Server."
     self.connectButton.enabled = True
 
     settingsGridLayout.addWidget(customAPILabel, 1, 0, 1, 1)
@@ -513,7 +517,7 @@ class TCIABrowserWidget(ScriptedLoadableModuleWidget):
 
   def apiKeySelected(self):
     settings = qt.QSettings()
-    settings.beginGroup("TCIABrowser/API-Keys")
+    settings.beginGroup("IDCBrowser/API-Keys")
 
     # self.connectButton.enabled = True
     if self.apiSelectionComboBox.currentText == 'Slicer API':
@@ -567,7 +571,7 @@ class TCIABrowserWidget(ScriptedLoadableModuleWidget):
       self.browserWidget.move(qt.QPoint(x, y))
       self.popupPositioned = True
 
-  def showStatus(self, message, waitMessage='Waiting for TCIA server .... '):
+  def showStatus(self, message, waitMessage='Waiting for IDC server .... '):
     self.statusLabel.text = waitMessage + message
     self.statusLabel.setStyleSheet("QLabel { background-color : #F0F0F0 ; color : #383838; }")
     slicer.app.processEvents()
@@ -581,21 +585,21 @@ class TCIABrowserWidget(ScriptedLoadableModuleWidget):
 
   def getCollectionValues(self):
     self.initialConnection = True
-    # Instantiate TCIAClient object
-    self.TCIAClient = TCIAClient.TCIAClient()
+    # Instantiate IDCClient object
+    self.IDCClient = IDCClient.IDCClient()
     self.showStatus("Getting Available Collections")
     try:
-      response = self.TCIAClient.get_collection_values()
-      responseString = response.read()[:]
+      responseString = self.IDCClient.get_collection_values()
+      logging.debug("getCollectionValues: responseString = " + responseString)
       self.populateCollectionsTreeView(responseString)
       self.clearStatus()
 
     except Exception as error:
       self.connectButton.enabled = True
       self.clearStatus()
-      message = "getCollectionValues: Error in getting response from TCIA server.\nHTTP Error:\n" + str(error)
+      message = "getCollectionValues: Error in getting response from IDC server.\nHTTP Error:\n" + str(error)
       qt.QMessageBox.critical(slicer.util.mainWindow(),
-                  'TCIA Browser', message, qt.QMessageBox.Ok)
+                  'IDC Browser', message, qt.QMessageBox.Ok)
     self.showBrowserButton.enabled = True
     self.showBrowser()
 
@@ -638,28 +642,31 @@ class TCIABrowserWidget(ScriptedLoadableModuleWidget):
     if patientsList:
       self.populatePatientsTableWidget(patientsList)
       self.clearStatus()
-      groupBoxTitle = 'Patients (Accessed: ' + time.ctime(os.path.getmtime(cacheFile)) + ')'
+      #groupBoxTitle = 'Patients (Accessed: ' + time.ctime(os.path.getmtime(cacheFile)) + ')'
+      groupBoxTitle = 'Patients'
       self.patientsCollapsibleGroupBox.setTitle(groupBoxTitle)
 
     else:
       try:
-        response = self.TCIAClient.get_patient(collection=self.selectedCollection)
-
-        with open(cacheFile, 'wb') as outputFile:
+        responseString = self.IDCClient.get_patient(collection=self.selectedCollection)
+        '''
+        with open(cacheFile, 'w') as outputFile:
           self.stringBufferReadWrite(outputFile, response)
         outputFile.close()
-        f = codecs.open(cacheFile, 'rb', encoding='utf8')
-        responseString = f.read()[:]
+        f = codecs.open(cacheFile, 'r', encoding='utf8')
+        responseString = f.read()
+        '''
         self.populatePatientsTableWidget(responseString)
-        groupBoxTitle = 'Patients (Accessed: ' + time.ctime(os.path.getmtime(cacheFile)) + ')'
+        #groupBoxTitle = 'Patients (Accessed: ' + time.ctime(os.path.getmtime(cacheFile)) + ')'
+        groupBoxTitle = 'Patients'
         self.patientsCollapsibleGroupBox.setTitle(groupBoxTitle)
         self.clearStatus()
 
       except Exception as error:
         self.clearStatus()
-        message = "collectionSelected: Error in getting response from TCIA server.\nHTTP Error:\n" + str(error)
+        message = "collectionSelected: Error in getting response from IDC server.\nHTTP Error:\n" + str(error)
         qt.QMessageBox.critical(slicer.util.mainWindow(),
-                    'TCIA Browser', message, qt.QMessageBox.Ok)
+                    'IDC Browser', message, qt.QMessageBox.Ok)
 
   def patientsTableSelectionChanged(self):
     self.clearStudiesTableWidget()
@@ -687,7 +694,8 @@ class TCIABrowserWidget(ScriptedLoadableModuleWidget):
       self.populateStudiesTableWidget(responseString)
       self.clearStatus()
       if self.numberOfSelectedPatients == 1:
-        groupBoxTitle = 'Studies (Accessed: ' + time.ctime(os.path.getmtime(cacheFile)) + ')'
+        #groupBoxTitle = 'Studies (Accessed: ' + time.ctime(os.path.getmtime(cacheFile)) + ')'
+        groupBoxTitle = 'Studies '
       else:
         groupBoxTitle = 'Studies '
 
@@ -695,16 +703,18 @@ class TCIABrowserWidget(ScriptedLoadableModuleWidget):
 
     else:
       try:
-        response = self.TCIAClient.get_patient_study(patientId=self.selectedPatient)
-        responseString = response.read()[:]
+        responseString = self.IDCClient.get_patient_study(patientId=self.selectedPatient)
+        '''
         with open(cacheFile, 'wb') as outputFile:
           outputFile.write(responseString)
           outputFile.close()
         f = codecs.open(cacheFile, 'rb', encoding='utf8')
         responseString = f.read()[:]
+        '''
         self.populateStudiesTableWidget(responseString)
         if self.numberOfSelectedPatients == 1:
-          groupBoxTitle = 'Studies (Accessed: ' + time.ctime(os.path.getmtime(cacheFile)) + ')'
+          #groupBoxTitle = 'Studies (Accessed: ' + time.ctime(os.path.getmtime(cacheFile)) + ')'
+          groupBoxTitle = 'Studies '
         else:
           groupBoxTitle = 'Studies '
 
@@ -713,9 +723,9 @@ class TCIABrowserWidget(ScriptedLoadableModuleWidget):
 
       except Exception as error:
         self.clearStatus()
-        message = "patientSelected: Error in getting response from TCIA server.\nHTTP Error:\n" + str(error)
+        message = "patientSelected: Error in getting response from IDC server.\nHTTP Error:\n" + str(error)
         qt.QMessageBox.critical(slicer.util.mainWindow(),
-                    'TCIA Browser', message, qt.QMessageBox.Ok)
+                    'IDC Browser', message, qt.QMessageBox.Ok)
 
   def studiesTableSelectionChanged(self):
     self.clearSeriesTableWidget()
@@ -735,13 +745,15 @@ class TCIABrowserWidget(ScriptedLoadableModuleWidget):
     self.showStatus(self.progressMessage)
     cacheFile = self.cachePath + self.selectedStudy + '.json'
     if os.path.isfile(cacheFile) and self.useCacheFlag:
+      logging.debug("studySelected: using cache file: " + cacheFile)
       f = codecs.open(cacheFile, 'rb', encoding='utf8')
       responseString = f.read()[:]
       f.close()
       self.populateSeriesTableWidget(responseString)
       self.clearStatus()
       if self.numberOfSelectedStudies == 1:
-        groupBoxTitle = 'Series (Accessed: ' + time.ctime(os.path.getmtime(cacheFile)) + ')'
+        #groupBoxTitle = 'Series (Accessed: ' + time.ctime(os.path.getmtime(cacheFile)) + ')'
+        groupBoxTitle = 'Series '
       else:
         groupBoxTitle = 'Series '
 
@@ -751,15 +763,18 @@ class TCIABrowserWidget(ScriptedLoadableModuleWidget):
       self.progressMessage = "Getting available series for studyInstanceUID: " + self.selectedStudy
       self.showStatus(self.progressMessage)
       try:
-        response = self.TCIAClient.get_series(studyInstanceUID=self.selectedStudy)
-        responseString = response.read()[:]
+        responseString = self.IDCClient.get_series(studyInstanceUID=self.selectedStudy)
+        '''
         with open(cacheFile, 'wb') as outputFile:
           outputFile.write(responseString)
           outputFile.close()
+        '''
+
         self.populateSeriesTableWidget(responseString)
 
         if self.numberOfSelectedStudies == 1:
-          groupBoxTitle = 'Series (Accessed: ' + time.ctime(os.path.getmtime(cacheFile)) + ')'
+          #groupBoxTitle = 'Series (Accessed: ' + time.ctime(os.path.getmtime(cacheFile)) + ')'
+          groupBoxTitle = 'Series '
         else:
           groupBoxTitle = 'Series '
 
@@ -768,9 +783,9 @@ class TCIABrowserWidget(ScriptedLoadableModuleWidget):
 
       except Exception as error:
         self.clearStatus()
-        message = "studySelected: Error in getting response from TCIA server.\nHTTP Error:\n" + str(error)
+        message = "studySelected: Error in getting response from IDC server.\nHTTP Error:\n" + str(error)
         qt.QMessageBox.critical(slicer.util.mainWindow(),
-                    'TCIA Browser', message, qt.QMessageBox.Ok)
+                    'IDC Browser', message, qt.QMessageBox.Ok)
 
     self.onSeriesSelectAllButton()
     # self.loadButton.enabled = True
@@ -879,18 +894,19 @@ class TCIABrowserWidget(ScriptedLoadableModuleWidget):
       self.extractedFilesDirectory = downloadFolderPath + 'images'
       self.progressMessage = "Downloading Images for series InstanceUID: " + selectedSeries
       self.showStatus(self.progressMessage)
-      seriesSize = self.getSeriesSize(selectedSeries)
+      #seriesSize = self.getSeriesSize(selectedSeries)
       logging.debug(self.progressMessage)
       try:
-        response = self.TCIAClient.get_image(seriesInstanceUid=selectedSeries)
+        response = self.IDCClient.get_image(seriesInstanceUid=selectedSeries, downloadDir=self.extractedFilesDirectory)
         slicer.app.processEvents()
+        '''
         # Save server response as images.zip in current directory
         if response.getcode() == 200:
           destinationFile = open(fileName, "wb")
           status = self.__bufferReadWrite(destinationFile, response, selectedSeries, seriesSize)
 
           destinationFile.close()
-          logging.debug("Downloaded file %s from the TCIA server" % fileName)
+          logging.debug("Downloaded file %s from the IDC server" % fileName)
           self.clearStatus()
           if status:
             self.progressMessage = "Extracting Images"
@@ -900,37 +916,36 @@ class TCIABrowserWidget(ScriptedLoadableModuleWidget):
             totalItems = self.unzip(fileName, self.extractedFilesDirectory)
             if totalItems == 0:
               qt.QMessageBox.critical(slicer.util.mainWindow(),
-                          'TCIA Browser',
+                          'IDC Browser',
                           "Failed to retrieve images for series %s. Please report this message to the developers!" % selectedSeries,
                           qt.QMessageBox.Ok)
             self.clearStatus()
             # Import the data into dicomAppWidget and open the dicom browser
-            self.addFilesToDatabase(selectedSeries)
-            #
-            self.previouslyDownloadedSeries.append(selectedSeries)
-            with open(self.downloadedSeriesArchiveFile, 'wb') as f:
-              pickle.dump(self.previouslyDownloadedSeries, f)
-            f.close()
-            n = self.seriesRowNumber[selectedSeries]
-            table = self.seriesTableWidget
-            item = table.item(n, 1)
-            item.setIcon(self.storedlIcon)
-          else:
-            logging.error("Failed to download images!")
-            self.removeDownloadProgressBar(selectedSeries)
-            self.downloadQueue.pop(selectedSeries, None)
+          '''
+        try:
+          self.addFilesToDatabase(selectedSeries)
+          '''
+          #
+          self.previouslyDownloadedSeries.append(selectedSeries)
+          with open(self.downloadedSeriesArchiveFile, 'wb') as f:
+            pickle.dump(self.previouslyDownloadedSeries, f)
+          f.close()
+          '''
+          n = self.seriesRowNumber[selectedSeries]
+          table = self.seriesTableWidget
+          item = table.item(n, 1)
+          item.setIcon(self.storedlIcon)
+        except Exception as error:
+          logging.error("Failed to add images to the database!")
+          self.removeDownloadProgressBar(selectedSeries)
+          self.downloadQueue.pop(selectedSeries, None)
 
-          os.remove(fileName)
-
-        else:
-          self.clearStatus()
-          logging.error("downloadSelectedSeries: Error getting image: " + str(response.getcode))  # print error code
 
       except Exception as error:
         self.clearStatus()
-        message = "downloadSelectedSeries: Error in getting response from TCIA server.\nHTTP Error:\n" + str(error)
+        message = "downloadSelectedSeries: Error in getting response from IDC server.\nHTTP Error:\n" + str(error)
         qt.QMessageBox.critical(slicer.util.mainWindow(),
-                    'TCIA Browser', message, qt.QMessageBox.Ok)
+                    'IDC Browser', message, qt.QMessageBox.Ok)
     self.cancelDownloadButton.enabled = False
     self.collectionSelector.enabled = True
     self.patientsTableWidget.enabled = True
@@ -955,26 +970,8 @@ class TCIABrowserWidget(ScriptedLoadableModuleWidget):
     self.downloadProgressLabels[selectedSeries].deleteLater()
     del self.downloadProgressLabels[selectedSeries]
 
-  def stringBufferReadWrite(self, dstFile, response, bufferSize=819):
-    self.downloadSize = 0
-    while 1:
-      #
-      # If DOWNLOAD FINISHED
-      #
-      buffer = response.read(bufferSize)[:]
-      slicer.app.processEvents()
-      if not buffer:
-        # Pop from the queue
-        break
-      #
-      # Otherwise, Write buffer chunk to file
-      #
-      slicer.app.processEvents()
-      dstFile.write(buffer)
-      #
-      # And update progress indicators
-      #
-      self.downloadSize += len(buffer)
+  def stringBufferReadWrite(self, dstFile, responseString, bufferSize=819):
+      dstFile.write(responseString)
 
   # This part was adopted from XNATSlicer module
   def __bufferReadWrite(self, dstFile, response, selectedSeries, seriesSize, bufferSize=8192):
@@ -1039,10 +1036,10 @@ class TCIABrowserWidget(ScriptedLoadableModuleWidget):
     return totalItems
 
   def getSeriesSize(self, seriesInstanceUID):
-    response = self.TCIAClient.get_series_size(seriesInstanceUID)
+    response = self.IDCClient.get_series_size(seriesInstanceUID)
     responseString = response.read()[:]
     jsonResponse = json.loads(responseString)
-    # TCIABrowser returns the total size of the series while we are
+    # IDCBrowser returns the total size of the series while we are
     # recieving series in compressed zip format. The compression ration
     # is an approximation.
     compressionRatio = 1.5
@@ -1066,6 +1063,7 @@ class TCIABrowserWidget(ScriptedLoadableModuleWidget):
       self.collectionSelector.addItem(name)
 
   def populatePatientsTableWidget(self, responseString):
+    logging.debug("populatePatientsTableWidget")
     self.clearPatientsTableWidget()
     table = self.patientsTableWidget
     patients = json.loads(responseString)
@@ -1075,28 +1073,17 @@ class TCIABrowserWidget(ScriptedLoadableModuleWidget):
       keys = patient.keys()
       for key in keys:
         if key == 'PatientID':
+          logging.debug("PatientID: %s" % patient['PatientID'])
           patientIDString = str(patient['PatientID'])
           patientID = qt.QTableWidgetItem(patientIDString)
           self.patientsIDs.append(patientID)
           table.setItem(n, 0, patientID)
           if patientIDString[0:4] == 'TCGA':
             patientID.setIcon(self.reportIcon)
-        if key == 'PatientName':
-          patientName = qt.QTableWidgetItem(str(patient['PatientName']))
-          self.patientNames.append(patientName)
-          table.setItem(n, 1, patientName)
-        if key == 'PatientBirthDate':
-          patientBirthDate = qt.QTableWidgetItem(str(patient['PatientBirthDate']))
-          self.patientBirthDates.append(patientBirthDate)
-          table.setItem(n, 2, patientBirthDate)
         if key == 'PatientSex':
           patientSex = qt.QTableWidgetItem(str(patient['PatientSex']))
           self.patientSexes.append(patientSex)
-          table.setItem(n, 3, patientSex)
-        if key == 'EthnicGroup':
-          ethnicGroup = qt.QTableWidgetItem(str(patient['EthnicGroup']))
-          self.ethnicGroups.append(ethnicGroup)
-          table.setItem(n, 4, ethnicGroup)
+          table.setItem(n, 1, patientSex)
       n += 1
     self.patientsTableWidget.resizeColumnsToContents()
     self.patientsTableWidgetHeader.setStretchLastSection(True)
@@ -1126,28 +1113,17 @@ class TCIABrowserWidget(ScriptedLoadableModuleWidget):
           studyDescription = qt.QTableWidgetItem(str(study['StudyDescription']))
           self.studyDescriptions.append(studyDescription)
           table.setItem(n, 2, studyDescription)
-        if key == 'AdmittingDiagnosesDescriptions':
-          admittingDiagnosesDescription = qt.QTableWidgetItem(str(study['AdmittingDiagnosesDescriptions']))
-          self.admittingDiagnosesDescriptions.append(admittingDiagnosesDescription)
-          table.setItem(n, 3, admittingDiagnosesDescription)
-        if key == 'StudyID':
-          studyID = qt.QTableWidgetItem(str(study['StudyID']))
-          self.studyIDs.append(studyID)
-          table.setItem(n, 4, studyID)
-        if key == 'PatientAge':
-          patientAge = qt.QTableWidgetItem(str(study['PatientAge']))
-          self.patientAges.append(patientAge)
-          table.setItem(n, 5, patientAge)
         if key == 'SeriesCount':
           seriesCount = qt.QTableWidgetItem(str(study['SeriesCount']))
           self.seriesCounts.append(seriesCount)
-          table.setItem(n, 6, seriesCount)
+          table.setItem(n, 3, seriesCount)
       n += 1
     self.studiesTableWidget.resizeColumnsToContents()
     self.studiesTableWidgetHeader.setStretchLastSection(True)
     self.studiesTableRowCount = n
 
   def populateSeriesTableWidget(self, responseString):
+    logging.debug("populateSeriesTableWidget")
     # self.clearSeriesTableWidget()
     table = self.seriesTableWidget
     seriesCollection = json.loads(responseString)
@@ -1179,46 +1155,34 @@ class TCIABrowserWidget(ScriptedLoadableModuleWidget):
           modality = qt.QTableWidgetItem(str(series['Modality']))
           self.modalities.append(modality)
           table.setItem(n, 2, modality)
-        if key == 'ProtocolName':
-          protocolName = qt.QTableWidgetItem(str(series['ProtocolName']))
-          self.protocolNames.append(protocolName)
-          table.setItem(n, 3, protocolName)
         if key == 'SeriesDate':
           seriesDate = qt.QTableWidgetItem(str(series['SeriesDate']))
           self.seriesDates.append(seriesDate)
-          table.setItem(n, 4, seriesDate)
+          table.setItem(n, 3, seriesDate)
         if key == 'SeriesDescription':
           seriesDescription = qt.QTableWidgetItem(str(series['SeriesDescription']))
           self.seriesDescriptions.append(seriesDescription)
-          table.setItem(n, 5, seriesDescription)
+          table.setItem(n, 4, seriesDescription)
         if key == 'BodyPartExamined':
           bodyPartExamined = qt.QTableWidgetItem(str(series['BodyPartExamined']))
           self.bodyPartsExamined.append(bodyPartExamined)
-          table.setItem(n, 6, bodyPartExamined)
+          table.setItem(n, 5, bodyPartExamined)
         if key == 'SeriesNumber':
           seriesNumber = qt.QTableWidgetItem(str(series['SeriesNumber']))
           self.seriesNumbers.append(seriesNumber)
-          table.setItem(n, 7, seriesNumber)
-        if key == 'AnnotationsFlag':
-          annotationsFlag = qt.QTableWidgetItem(str(series['AnnotationsFlag']))
-          self.annotationsFlags.append(annotationsFlag)
-          table.setItem(n, 8, annotationsFlag)
+          table.setItem(n, 6, seriesNumber)
         if key == 'Manufacturer':
           manufacturer = qt.QTableWidgetItem(str(series['Manufacturer']))
           self.manufacturers.append(manufacturer)
-          table.setItem(n, 9, manufacturer)
+          table.setItem(n, 7, manufacturer)
         if key == 'ManufacturerModelName':
           manufacturerModelName = qt.QTableWidgetItem(str(series['ManufacturerModelName']))
           self.manufacturerModelNames.append(manufacturerModelName)
-          table.setItem(n, 10, manufacturerModelName)
-        if key == 'SoftwareVersions':
-          softwareVersions = qt.QTableWidgetItem(str(series['SoftwareVersions']))
-          self.softwareVersionsCollection.append(softwareVersions)
-          table.setItem(n, 11, softwareVersions)
+          table.setItem(n, 8, manufacturerModelName)
         if key == 'ImageCount':
           imageCount = qt.QTableWidgetItem(str(series['ImageCount']))
           self.imageCounts.append(imageCount)
-          table.setItem(n, 12, imageCount)
+          table.setItem(n, 9, imageCount)
       n += 1
     self.seriesTableWidget.resizeColumnsToContents()
     self.seriesTableRowCount = n
@@ -1270,7 +1234,7 @@ class TCIABrowserWidget(ScriptedLoadableModuleWidget):
     table.clear()
     table.setHorizontalHeaderLabels(self.seriesTableHeaderLabels)
 
-  def onReload(self, moduleName="TCIABrowser"):
+  def onReload(self, moduleName="IDCBrowser"):
     """Generic reload method for any scripted module.
     ModuleWizard will subsitute correct default moduleName.
     """
@@ -1322,7 +1286,7 @@ class TCIABrowserWidget(ScriptedLoadableModuleWidget):
     setattr(globals()['slicer'].modules, widgetName, globals()[widgetName.lower()])
     self.showBrowserButton.enabled = True
 
-  def onReloadAndTest(self, moduleName="TCIABrowser"):
+  def onReloadAndTest(self, moduleName="IDCBrowser"):
     self.onReload()
     evalString = 'globals()["%s"].%sTest()' % (moduleName, moduleName)
     tester = eval(evalString)
@@ -1330,10 +1294,10 @@ class TCIABrowserWidget(ScriptedLoadableModuleWidget):
 
 
 #
-# TCIABrowserLogic
+# IDCBrowserLogic
 #
 
-class TCIABrowserLogic(ScriptedLoadableModuleLogic):
+class IDCBrowserLogic(ScriptedLoadableModuleLogic):
   """This class should implement all the actual
   computation done by your module.  The interface
   should be such that other python code can import
@@ -1418,12 +1382,12 @@ class TCIABrowserLogic(ScriptedLoadableModuleLogic):
     self.enableScreenshots = enableScreenshots
     self.screenshotScaleFactor = screenshotScaleFactor
 
-    self.takeScreenshot('TCIABrowser-Start', 'Start', -1)
+    self.takeScreenshot('IDCBrowser-Start', 'Start', -1)
 
     return True
 
 
-class TCIABrowserTest(unittest.TestCase):
+class IDCBrowserTest(unittest.TestCase):
   """
   This is the test case for your scripted module.
   """
@@ -1459,7 +1423,7 @@ class TCIABrowserTest(unittest.TestCase):
 
   def testBrowserDownloadAndLoad(self):
     self.delayDisplay("Starting the test")
-    widget = TCIABrowserWidget(None)
+    widget = IDCBrowserWidget(None)
     widget.getCollectionValues()
     browserWindow = widget.browserWidget
     collectionsCombobox = browserWindow.findChildren('QComboBox')[0]

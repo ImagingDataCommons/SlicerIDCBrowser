@@ -1,19 +1,7 @@
-TCIABrowser
+[Work in progress] Slicer IDC Browser
 ===========
 
-## Introduction
-TCIABrowser is a [3D Slicer](http://slicer.org/) module for browsing and downloading medical imaging collections from [The Cancer Imaging Archive (TCIA)](http://www.cancerimagingarchive.net/). See [documentation](http://wiki.slicer.org/slicerWiki/index.php/Documentation/Nightly/Extensions/TCIABrowser) for more information.
+## About
+IDCBrowser is a [3D Slicer](http://slicer.org/) extension for browsing and downloading DICOM files from the [NCI Imaging Data Commons](https://imaging.datacommons.cancer.gov/).
 
-![alt tag](https://raw.githubusercontent.com/QIICR/TCIABrowser/master/TCIABrowser/Resources/Screenshot/screenshot1.png)
-
-## Acknowledgments
-This work is supported in part by the following National Institutes of Health grant:
-
-* Quantitative Image Informatics for Cancer Research [QIICR](http://qiicr.org/) (U24 CA180918, PIs Kikinis and Fedorov)
-
-## Contributors:
-* Alireza Mehrtash, Brigham and Women's Hospital
-* Andrey Fedorov, Brigham and Women's Hospital
-
-## License
-* [Slicer License](http://www.slicer.org/pages/LicenseText)
+Development of this extension was [initiated](https://projectweek.na-mic.org/PW39_2023_Montreal/Projects/SlicerIDCBrowser/) in June 2023. Please reach out to @fedorov for the current status. 
