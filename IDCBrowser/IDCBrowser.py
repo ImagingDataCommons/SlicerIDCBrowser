@@ -18,6 +18,7 @@ import pydicom
 import os
 import sys
 import urllib
+import qt
 from __main__ import vtk, qt, ctk, slicer
 
 import logging
@@ -58,6 +59,7 @@ class IDCBrowser(ScriptedLoadableModule):
       slicer.selfTests = {}
     slicer.selfTests['IDCBrowser'] = self.runTest
 
+
   def runTest(self):
     tester = IDCBrowserTest()
     tester.runTest()
@@ -69,6 +71,8 @@ class IDCBrowser(ScriptedLoadableModule):
 class IDCBrowserWidget(ScriptedLoadableModuleWidget):
   def __init__(self, parent=None):
     self.loadToScene = False
+
+    self.logic = IDCBrowserLogic()
 
     self.browserWidget = qt.QWidget()
     self.browserWidget.setWindowTitle('IDC Browser')
@@ -867,6 +871,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
     if self.loadToScene:
       for seriesUID in allSelectedSeriesUIDs:
+        logging.debug("Loading series: " + seriesUID)
         if any(seriesUID == s for s in self.previouslyDownloadedSeries):
           self.progressMessage = "Examine Files to Load"
           self.showStatus(self.progressMessage, '')
@@ -877,8 +882,14 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
           loadables = plugin.examine([fileList])
           self.clearStatus()
           volume = plugin.load(loadables[0])
+          logging.debug("Loaded volume: " + volume.GetName())
 
   def downloadSelectedSeries(self):
+    
+    if self.logic.gets5cmdPath() == '':
+      self.logic.setups5cmd()
+      self.IDCClient.s5cmdPath = self.logic.gets5cmdPath()
+    
     while self.downloadQueue and not self.cancelDownload:
       self.cancelDownloadButton.enabled = True
       selectedSeries, downloadFolderPath = self.downloadQueue.popitem()
@@ -924,9 +935,9 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
           '''
         try:
           self.addFilesToDatabase(selectedSeries)
-          '''
-          #
           self.previouslyDownloadedSeries.append(selectedSeries)
+          '''
+          #          
           with open(self.downloadedSeriesArchiveFile, 'wb') as f:
             pickle.dump(self.previouslyDownloadedSeries, f)
           f.close()
@@ -1385,6 +1396,140 @@ class IDCBrowserLogic(ScriptedLoadableModuleLogic):
     self.takeScreenshot('IDCBrowser-Start', 'Start', -1)
 
     return True
+
+  # inherited from 
+  # https://github.com/Slicer/Slicer/blob/main/Modules/Scripted/ScreenCapture/ScreenCapture.py#L873
+
+  def setups5cmd(self):
+      self.finds5cmd()
+      if not self.iss5cmdPathValid():
+          # ffmpeg not found, offer downloading it
+          if slicer.util.confirmOkCancelDisplay(
+              's5cmd download tool is not detected on your system. '
+              'Download s5cmd?',
+                  windowTitle='Download confirmation'):
+              if not self.s5cmdDownload():
+                  slicer.util.errorDisplay("s5cmd download failed")
+      if not self.iss5cmdPathValid():
+          return False
+      return True
+
+  def iss5cmdPathValid(self):
+      s5cmdPath = self.gets5cmdPath()
+      return os.path.isfile(s5cmdPath)
+  
+  def getDownloadeds5cmdDirectory(self):
+      return os.path.dirname(slicer.app.slicerUserSettingsFilePath) + '/s5cmd'
+
+  def gets5cmdExecutableFilename(self):
+      if os.name == 'nt':
+          return 's5cmd.exe'
+      elif os.name == 'posix':
+          return 's5cmd'
+      else:
+          return None
+
+  def finds5cmd(self):
+      # Try to find the executable at specific paths
+      commons5cmdPaths = [
+          #'/usr/local/bin/s5cmd',
+          '/usr/bin/s5cmd'
+      ]
+      for s5cmdPath in commons5cmdPaths:
+          if os.path.isfile(s5cmdPath):
+              # found one
+              self.sets5cmdPath(s5cmdPath)
+              return True
+      # Search for the executable in directories
+      commons5cmdDirs = [
+          self.getDownloadeds5cmdDirectory()
+      ]
+      for s5cmdDir in commons5cmdDirs:
+          if self.finds5cmdInDirectory(s5cmdDir):
+              # found it
+              return True
+      # Not found
+      return False
+  
+  def finds5cmdInDirectory(self, s5cmdDir):
+      s5cmdExecutableFilename = self.gets5cmdExecutableFilename()
+      for dirpath, dirnames, files in os.walk(s5cmdDir):
+          for name in files:
+              if name == s5cmdExecutableFilename:
+                  s5cmdExecutablePath = (dirpath + '/' + name).replace('\\', '/')
+                  self.sets5cmdPath(s5cmdExecutablePath)
+                  return True
+      return False
+  
+  def unzips5cmd(self, filePath, s5cmdTargetDirectory):
+      if not os.path.exists(filePath) or os.stat(filePath).st_size == 0:
+          logging.info('s5cmd package is not found at ' + filePath)
+          return False
+
+      logging.info('Unzipping s5cmd package ' + filePath)
+      qt.QDir().mkpath(s5cmdTargetDirectory)
+      slicer.app.applicationLogic().Unzip(filePath, s5cmdTargetDirectory)
+      success = self.finds5cmdInDirectory(s5cmdTargetDirectory)
+      return success
+
+  def s5cmdDownload(self):
+      s5cmdTargetDirectory = self.getDownloadeds5cmdDirectory()
+      # The number in the filePath can be incremented each time a significantly different s5cmd version
+      # is to be introduced (it prevents reusing a previously downloaded package).
+      filePath = slicer.app.temporaryPath + '/s5cmd-package-slicer-01.zip'
+      success = self.unzips5cmd(filePath, s5cmdTargetDirectory)
+      if success:
+          # there was a valid downloaded package already
+          return True
+
+      # List of mirror sites to attempt download s5cmd pre-built binaries from
+      urls = []
+      if os.name == 'nt':
+          urls.append('hhttps://github.com/peak/s5cmd/releases/download/v2.0.0/s5cmd_2.0.0_Windows-64bit.zip')
+      elif os.name == 'posix':
+          urls.append('https://github.com/peak/s5cmd/releases/download/v2.0.0/s5cmd_2.0.0_macOS-64bit.tar.gz')
+      else:
+          # TODO: implement downloading for other platforms?
+          pass
+
+      success = False
+      qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
+
+      for url in urls:
+
+          success = True
+          try:
+              logging.info('Requesting download s5cmd from %s...' % url)
+              import urllib.request, urllib.error, urllib.parse
+              req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+              data = urllib.request.urlopen(req).read()
+              with open(filePath, "wb") as f:
+                  f.write(data)
+
+              success = self.unzips5cmd(filePath, s5cmdTargetDirectory)
+          except:
+              success = False
+
+          if success:
+              break
+
+      qt.QApplication.restoreOverrideCursor()
+      return success
+
+  def gets5cmdPath(self):
+      settings = qt.QSettings()
+      if settings.contains('General/s5cmdPath'):
+          return slicer.app.toSlicerHomeAbsolutePath(settings.value('General/s5cmdPath'))
+      return ''
+
+  def sets5cmdPath(self, s5cmdPath):
+      # don't save it if already saved
+      settings = qt.QSettings()
+      if settings.contains('General/s5cmdPath'):
+          if s5cmdPath == slicer.app.toSlicerHomeAbsolutePath(settings.value('General/s5cmdPath')):
+              return
+      settings.setValue('General/s5cmdPath', slicer.app.toSlicerHomeRelativePath(s5cmdPath))
+
 
 
 class IDCBrowserTest(unittest.TestCase):
