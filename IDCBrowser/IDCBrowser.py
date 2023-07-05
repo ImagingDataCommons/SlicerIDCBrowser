@@ -35,6 +35,9 @@ from slicer.ScriptedLoadableModule import *
 
 class IDCBrowser(ScriptedLoadableModule):
   def __init__(self, parent):
+
+    ScriptedLoadableModule.__init__(self, parent)
+
     parent.title = "IDC Browser"
     parent.categories = ["Informatics"]
     parent.dependencies = []
@@ -48,29 +51,25 @@ class IDCBrowser(ScriptedLoadableModule):
     parent.acknowledgementText = """ <img src=':Logos/QIICR.png'><br><br>
     Supported by NIH U24 CA180918 (PIs Kikinis and Fedorov)
     """
-    self.parent = parent
-
-    # Add this test to the SelfTest module's list for discovery when the module
-    # is created.  Since this module may be discovered before SelfTests itself,
-    # create the list if it doesn't already exist.
-    try:
-      slicer.selfTests
-    except AttributeError:
-      slicer.selfTests = {}
-    slicer.selfTests['IDCBrowser'] = self.runTest
 
 
-  def runTest(self):
-    tester = IDCBrowserTest()
-    tester.runTest()
 
 #
 # qIDCBrowserWidget
 #
 
 class IDCBrowserWidget(ScriptedLoadableModuleWidget):
-  def __init__(self, parent=None):
+
+  def setup(self):
+
+    ScriptedLoadableModuleWidget.setup(self)
+
     self.loadToScene = False
+
+    # This module is often used in developer mode, therefore
+    # collapse reload & test section by default.
+    if hasattr(self, "reloadCollapsibleButton"):
+        self.reloadCollapsibleButton.collapsed = True
 
     self.logic = IDCBrowserLogic()
 
@@ -123,24 +122,6 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
       os.makedirs(self.cachePath)
     self.useCacheFlag = False
 
-    if not parent:
-      self.parent = slicer.qMRMLWidget()
-      self.parent.setLayout(qt.QVBoxLayout())
-      self.parent.setMRMLScene(slicer.mrmlScene)
-    else:
-      self.parent = parent
-    self.layout = self.parent.layout()
-    if not parent:
-      self.setup()
-      self.parent.show()
-
-  def enter(self):
-    if self.showBrowserButton != None and self.showBrowserButton.enabled:
-      self.showBrowser()
-    if not self.initialConnection:
-      self.getCollectionValues()
-
-  def setup(self):
     # Instantiate and connect widgets ...
     if 'IDCBrowser' in slicer.util.moduleNames():
       self.modulePath = slicer.modules.idcbrowser.path.replace("IDCBrowser.py", "")
@@ -516,6 +497,11 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     # Add vertical spacer
     self.layout.addStretch(1)
 
+    if self.showBrowserButton != None and self.showBrowserButton.enabled:
+      self.showBrowser()
+    if not self.initialConnection:
+      self.getCollectionValues()
+
   def cleanup(self):
     pass
 
@@ -888,6 +874,9 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     
     if self.logic.gets5cmdPath() == '':
       self.logic.setups5cmd()
+      if self.logic.gets5cmdPath() == '':
+        logging.error("Unable to locate or setup s5cmd.")
+        return
       self.IDCClient.s5cmdPath = self.logic.gets5cmdPath()
     
     while self.downloadQueue and not self.cancelDownload:
@@ -1245,63 +1234,6 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     table.clear()
     table.setHorizontalHeaderLabels(self.seriesTableHeaderLabels)
 
-  def onReload(self, moduleName="IDCBrowser"):
-    """Generic reload method for any scripted module.
-    ModuleWizard will subsitute correct default moduleName.
-    """
-    import imp, sys, os, slicer
-    import time
-    import xml.etree.ElementTree as ET
-    import webbrowser
-    import string, json
-    import csv
-    import zipfile, os.path
-
-    widgetName = moduleName + "Widget"
-
-    # reload the source code
-    # - set source file path
-    # - load the module to the global space
-    filePath = eval('slicer.modules.%s.path' % moduleName.lower())
-    p = os.path.dirname(filePath)
-    if not sys.path.__contains__(p):
-      sys.path.insert(0, p)
-    fp = open(filePath, "rb")
-    globals()[moduleName] = imp.load_module(
-      moduleName, fp, filePath, ('.py', 'r', imp.PY_SOURCE))
-    fp.close()
-
-    # rebuild the widget
-    # - find and hide the existing widget
-    # - create a new widget in the existing parent
-    parent = slicer.util.findChildren(name='%s Reload' % moduleName)[0].parent().parent()
-    for child in parent.children():
-      try:
-        child.hide()
-      except AttributeError:
-        pass
-    # Remove spacer items
-    item = parent.layout().itemAt(0)
-    while item:
-      parent.layout().removeItem(item)
-      item = parent.layout().itemAt(0)
-
-    # delete the old widget instance
-    if hasattr(globals()['slicer'].modules, widgetName):
-      getattr(globals()['slicer'].modules, widgetName).cleanup()
-
-    # create new widget inside existing parent
-    globals()[widgetName.lower()] = eval(
-      'globals()["%s"].%s(parent)' % (moduleName, widgetName))
-    globals()[widgetName.lower()].setup()
-    setattr(globals()['slicer'].modules, widgetName, globals()[widgetName.lower()])
-    self.showBrowserButton.enabled = True
-
-  def onReloadAndTest(self, moduleName="IDCBrowser"):
-    self.onReload()
-    evalString = 'globals()["%s"].%sTest()' % (moduleName, moduleName)
-    tester = eval(evalString)
-    tester.runTest()
 
 
 #
