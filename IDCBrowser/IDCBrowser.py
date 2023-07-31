@@ -236,8 +236,8 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     # patientsVerticalLayout = qt.QVBoxLayout(patientsExpdableArea)
     self.patientsTableWidget = qt.QTableWidget()
     self.patientsModel = qt.QStandardItemModel()
-    self.patientsTableHeaderLabels = ['Patient ID', 'Patient Sex']
-    self.patientsTableWidget.setColumnCount(2)
+    self.patientsTableHeaderLabels = ['Patient ID', 'Patient Sex', 'Patient Age']
+    self.patientsTableWidget.setColumnCount(3)
     self.patientsTableWidget.sortingEnabled = True
     self.patientsTableWidget.setHorizontalHeaderLabels(self.patientsTableHeaderLabels)
     self.patientsTableWidgetHeader = self.patientsTableWidget.horizontalHeader()
@@ -1084,6 +1084,10 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
           patientSex = qt.QTableWidgetItem(str(patient['PatientSex']))
           self.patientSexes.append(patientSex)
           table.setItem(n, 1, patientSex)
+        if key == 'PatientAge':
+          patientAge = qt.QTableWidgetItem(str(patient['PatientAge']))
+          self.patientAges.append(patientAge)
+          table.setItem(n, 2, patientAge)
       n += 1
     self.patientsTableWidget.resizeColumnsToContents()
     self.patientsTableWidgetHeader.setStretchLastSection(True)
@@ -1195,6 +1199,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.patientNames = []
     self.patientBirthDates = []
     self.patientSexes = []
+    self.patientAges = []
     self.ethnicGroups = []
     # self.collections = []
     table.clear()

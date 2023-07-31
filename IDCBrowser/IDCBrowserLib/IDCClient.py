@@ -1,6 +1,5 @@
 import json, string, os
 import requests, logging
-import slicer
 #import TCIABrowserLib
 
 #
@@ -18,7 +17,7 @@ class IDCClient:
     GET_PATIENT = "getPatient"
 
     # use Slicer API key by default
-    def __init__(self, baseUrl='https://api.imaging.datacommons.cancer.gov/v1'):
+    def __init__(self, baseUrl='https://dev-api.canceridc.dev/v2'):
         self.baseUrl = baseUrl
         self.s5cmdPath = ''
 
@@ -107,12 +106,15 @@ class IDCClient:
               "filters": filters}
         params = dict(
             sql = False,
-            Collection_ID = True,
-            Patient_ID = True,
+            collection_id = True,
+            PatientID = True,
+            #PatientAge = True,
             page_size = 2000
         )
         url = '{}/cohorts/manifest/preview'.format(self.baseUrl)
         resp = self.execute_post(url , params=params, json=cohortSpec)
+
+        print(resp.json())
 
         idc_json = resp.json()['manifest']['json_manifest']
 
@@ -120,7 +122,7 @@ class IDCClient:
 
         for idc_item in idc_json:
             print(idc_item)
-            idc_item = {"PatientID":idc_item['Patient_ID'], 'PatientName':'', 'PatientSex':'', 'Collection':idc_item['Collection_ID']}
+            idc_item = {"PatientID":idc_item['PatientID'], 'PatientName':'', 'PatientSex':'', 'Collection':idc_item['collection_id'], 'PatientAge':'', 'StudyCount': ''}
             idc_response.append(idc_item)
 
         logging.debug("Get patient response: %s", json.dumps(idc_response))
@@ -138,8 +140,9 @@ class IDCClient:
         params = dict(
             sql = False,
             Collection_ID = True,
-            Patient_ID = False,
+            PatientID = False,
             StudyInstanceUID = True,
+            StudyDescription = True,
             page_size = 2000
         )
         url = '{}/cohorts/manifest/preview'.format(self.baseUrl)
@@ -155,7 +158,7 @@ class IDCClient:
                     'PatientSex':'', \
                     'StudyInstanceUID':idc_item['StudyInstanceUID'],\
                     'StudyDate':'',\
-                    'StudyDescription':'',\
+                    'StudyDescription':idc_item['StudyDescription'],\
                     'PatientAge':'',\
                     'SeriesCount': ''\
                     }
@@ -175,7 +178,7 @@ class IDCClient:
         params = dict(
             sql = False,
             Collection_ID = True,
-            Patient_ID = False,
+            PatientID = False,
             StudyInstanceUID = False,
             SeriesInstanceUID = True,
             page_size = 2000
@@ -214,7 +217,7 @@ class IDCClient:
         params = dict(
             sql = False,
             Collection_ID = False,
-            Patient_ID = False,
+            PatientID = False,
             StudyInstanceUID = False,
             SeriesInstanceUID = True,
             GCS_URL = True,
