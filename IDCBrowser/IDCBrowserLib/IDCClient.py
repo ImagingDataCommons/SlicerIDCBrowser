@@ -38,7 +38,7 @@ class IDCClient:
     # def __init__(self, baseUrl='https://dev-api.canceridc.dev/v1'): # v1 dev
     # def __init__(self, baseUrl='http://localhost:8095/v2'):  # v2 local
         self.baseUrl = baseUrl
-        self.s5cmdPath = ''
+        self.s5cmdPath = '/Users/af61/bin/s5cmd'
 
     def execute_get(self, url, params=None, json=None):
 
@@ -303,7 +303,7 @@ class IDCClient:
         # series_url = 's3' + gcs_url[2:gcs_url.rfind('/') + 1] + '*'
 
         row = resp.json()['manifest']['json_manifest'][0]
-        series_url = f"gs://{row['gcs_bucket']}/{row['crdc_series_uuid']}/*"
+        series_url = f"s3://{row['gcs_bucket']}/{row['crdc_series_uuid']}/*"
 
         # if not self.iss5cmdPathValid():
         #    self.setups5cmd()
