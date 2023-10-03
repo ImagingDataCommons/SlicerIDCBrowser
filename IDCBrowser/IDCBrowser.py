@@ -575,8 +575,25 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
   def getCollectionValues(self):
     self.initialConnection = True
+
+    # TODO: this needs to go to some other function that is called just
+    # once in the module lifetime, but I don't know what that function is...
     # Instantiate IDCClient object
     self.IDCClient = IDCClient.IDCClient()
+
+    if self.logic.gets5cmdPath() == '':
+      print("path is blank")
+      self.logic.setups5cmd()
+      if self.logic.gets5cmdPath() == '':
+        logging.error("Unable to locate or setup s5cmd.")
+        return
+      print("s5cmd path: " + self.logic.gets5cmdPath())
+      logging.debug("s5cmd path: " + self.logic.gets5cmdPath())
+    else:
+      print("Logic says s5cmd is here: "+self.logic.gets5cmdPath())
+    self.IDCClient.s5cmdPath = self.logic.gets5cmdPath()
+    ### ^^^ end TODO
+    
     self.showStatus("Getting Available Collections")
     try:
       responseString = self.IDCClient.get_collection_values()
@@ -871,16 +888,6 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
           logging.debug("Loaded volume: " + volume.GetName())
 
   def downloadSelectedSeries(self):
-
-    if self.logic.gets5cmdPath() == '':
-      print("path is blank")
-      self.logic.setups5cmd()
-      if self.logic.gets5cmdPath() == '':
-        logging.error("Unable to locate or setup s5cmd.")
-        return
-      print("s5cmd path: " + self.logic.gets5cmdPath())
-      logging.debug("s5cmd path: " + self.logic.gets5cmdPath())
-      self.IDCClient.s5cmdPath = self.logic.gets5cmdPath()
     
     while self.downloadQueue and not self.cancelDownload:
       self.cancelDownloadButton.enabled = True
@@ -1430,13 +1437,18 @@ class IDCBrowserLogic(ScriptedLoadableModuleLogic):
 
       # List of mirror sites to attempt download s5cmd pre-built binaries from
       urls = []
-      if os.name == 'nt':
-          urls.append('hhttps://github.com/peak/s5cmd/releases/download/v2.0.0/s5cmd_2.0.0_Windows-64bit.zip')
-      elif os.name == 'posix':
-          urls.append('https://github.com/peak/s5cmd/releases/download/v2.0.0/s5cmd_2.0.0_macOS-64bit.tar.gz')
+      qs = qt.QSysInfo()
+      productType = qs.productType()
+      # TODO: need more granular OS version detection
+      s5cmd_version = "2.2.2"
+      if productType == 'windows':
+          urls.append(f'hhttps://github.com/peak/s5cmd/releases/download/v{s5cmd_version}/s5cmd_{s5cmd_version}_Windows-64bit.zip')
+      elif os.name == 'osx':
+          urls.append(f'https://github.com/peak/s5cmd/releases/download/v{s5cmd_version}/s5cmd_{s5cmd_version}_macOS-64bit.tar.gz')
       else:
-          # TODO: implement downloading for other platforms?
-          pass
+          # wild guess!          
+          urls.append(f'https://github.com/peak/s5cmd/releases/download/v{s5cmd_version}/s5cmd_{s5cmd_version}_Linux-64bit.tar.gz')
+      pass
 
       success = False
       qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
