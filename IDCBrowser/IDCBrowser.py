@@ -871,12 +871,15 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
           logging.debug("Loaded volume: " + volume.GetName())
 
   def downloadSelectedSeries(self):
-    
+
     if self.logic.gets5cmdPath() == '':
+      print("path is blank")
       self.logic.setups5cmd()
       if self.logic.gets5cmdPath() == '':
         logging.error("Unable to locate or setup s5cmd.")
         return
+      print("s5cmd path: " + self.logic.gets5cmdPath())
+      logging.debug("s5cmd path: " + self.logic.gets5cmdPath())
       self.IDCClient.s5cmdPath = self.logic.gets5cmdPath()
     
     while self.downloadQueue and not self.cancelDownload:
@@ -936,12 +939,16 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
           item = table.item(n, 1)
           item.setIcon(self.storedlIcon)
         except Exception as error:
+          import traceback
+          traceback.print_exc()
           logging.error("Failed to add images to the database!")
           self.removeDownloadProgressBar(selectedSeries)
           self.downloadQueue.pop(selectedSeries, None)
 
 
       except Exception as error:
+        import traceback
+        traceback.print_exc()
         self.clearStatus()
         message = "downloadSelectedSeries: Error in getting response from IDC server.\nHTTP Error:\n" + str(error)
         qt.QMessageBox.critical(slicer.util.mainWindow(),
@@ -1254,6 +1261,7 @@ class IDCBrowserLogic(ScriptedLoadableModuleLogic):
   """
 
   def __init__(self):
+    self.setups5cmd()
     pass
 
   def hasImageData(self, volumeNode):
@@ -1338,9 +1346,10 @@ class IDCBrowserLogic(ScriptedLoadableModuleLogic):
   # https://github.com/Slicer/Slicer/blob/main/Modules/Scripted/ScreenCapture/ScreenCapture.py#L873
 
   def setups5cmd(self):
+      print("setups5cmd")
       self.finds5cmd()
       if not self.iss5cmdPathValid():
-          # ffmpeg not found, offer downloading it
+          # s5cmd not found, offer downloading it
           if slicer.util.confirmOkCancelDisplay(
               's5cmd download tool is not detected on your system. '
               'Download s5cmd?',
