@@ -1,12 +1,12 @@
 #-----------------------------------------------------------------------------
-set(MODULE_NAME TCIABrowser)
-set(LIB_NAME TCIABrowserLib)
+set(MODULE_NAME IDCBrowser)
+set(LIB_NAME IDCBrowserLib)
 
 #-----------------------------------------------------------------------------
 set(MODULE_PYTHON_SCRIPTS
   ${MODULE_NAME}.py
   ${LIB_NAME}/__init__.py
-  ${LIB_NAME}/TCIAClient.py
+  ${LIB_NAME}/IDCClient.py
   ${LIB_NAME}/APISettingsPopup.py
   ${LIB_NAME}/clinicalDataPopup.py
   )
@@ -15,7 +15,7 @@ set(MODULE_PYTHON_RESOURCES
   Resources/Icons/downloadAndIndex.png
   Resources/Icons/downloadAndLoad.png
   Resources/Icons/report.png
-  Resources/Icons/TCIABrowser.png
+  Resources/Icons/IDCrowser.png
   Resources/Icons/stored.png
   Resources/Icons/download.png
   Resources/Icons/cancel.png

@@ -1,2 +1,0 @@
-slicer_add_python_unittest(SCRIPT TCIABrowserModuleAPIV1Test.py )
-slicer_add_python_unittest(SCRIPT TCIABrowserModuleAPIV3Test.py )

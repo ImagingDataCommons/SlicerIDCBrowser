@@ -215,7 +215,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     the browser will cache server responses and on further calls\
     would populate tables based on saved data on disk.'''
 
-    collectionsFormLayout.addWidget(self.useCacheCeckBox)
+    #collectionsFormLayout.addWidget(self.useCacheCeckBox)
     self.useCacheCeckBox.setCheckState(False)
     self.useCacheCeckBox.setTristate(False)
     collectionsFormLayout.addStretch(4)

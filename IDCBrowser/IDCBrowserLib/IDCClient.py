@@ -38,10 +38,10 @@ class IDCClient:
     # def __init__(self, baseUrl='https://dev-api.canceridc.dev/v1'): # v1 dev
     # def __init__(self, baseUrl='http://localhost:8095/v2'):  # v2 local
         self.baseUrl = baseUrl
-        self.s5cmdPath = '/Users/af61/bin/s5cmd'
+        self.s5cmdPath = None
 
     def execute_get(self, url, params=None, json=None):
-
+        logging.debug("GETting %s with params %s", url, params)
         response = requests.get(url, params=params, json=json)
         if response.status_code != 200:
             # Print the error code and message if something went wrong
@@ -50,7 +50,7 @@ class IDCClient:
         return response
 
     def execute_post(self, url, params=None, json=None):
-
+        logging.debug("POSTing %s with params %s", url, params)
         response = requests.post(url, params=params, json=json)
         if response.status_code != 200:
             # Print the error code and message if something went wrong
@@ -293,6 +293,7 @@ class IDCClient:
             sql=False,
             crdc_series_uuid=True,
             gcs_bucket=True,
+            aws_bucket=True,
             page_size=1
         )
         url = '{}/cohorts/manifest/preview'.format(self.baseUrl)
@@ -303,14 +304,14 @@ class IDCClient:
         # series_url = 's3' + gcs_url[2:gcs_url.rfind('/') + 1] + '*'
 
         row = resp.json()['manifest']['json_manifest'][0]
-        series_url = f"s3://{row['gcs_bucket']}/{row['crdc_series_uuid']}/*"
+        series_url = f"s3://{row['aws_bucket']}/{row['crdc_series_uuid']}/*"
 
         # if not self.iss5cmdPathValid():
         #    self.setups5cmd()
 
         import subprocess
 
-        cmd = [self.s5cmdPath, '--no-sign-request', '--endpoint-url', 'https://storage.googleapis.com', 'cp',
+        cmd = [self.s5cmdPath, '--no-sign-request', '--endpoint-url', 'https://s3.amazonaws.com', 'cp',
                series_url, downloadDir]
         logging.debug(" ".join(cmd))
 
@@ -318,6 +319,9 @@ class IDCClient:
             ret = subprocess.run(cmd)
 
         return 0
+    
+
+    
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     client = IDCClient()
