@@ -1442,7 +1442,7 @@ class IDCBrowserLogic(ScriptedLoadableModuleLogic):
       # TODO: need more granular OS version detection
       s5cmd_version = "2.2.2"
       if productType == 'windows':
-          urls.append(f'hhttps://github.com/peak/s5cmd/releases/download/v{s5cmd_version}/s5cmd_{s5cmd_version}_Windows-64bit.zip')
+          urls.append(f'https://github.com/peak/s5cmd/releases/download/v{s5cmd_version}/s5cmd_{s5cmd_version}_Windows-64bit.zip')
       elif os.name == 'osx':
           urls.append(f'https://github.com/peak/s5cmd/releases/download/v{s5cmd_version}/s5cmd_{s5cmd_version}_macOS-64bit.tar.gz')
       else:
@@ -1466,6 +1466,7 @@ class IDCBrowserLogic(ScriptedLoadableModuleLogic):
 
               success = self.unzips5cmd(filePath, s5cmdTargetDirectory)
           except:
+              logging.error('Failed to download s5cmd')
               success = False
 
           if success:
