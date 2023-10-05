@@ -100,8 +100,10 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     # recent Slicer versions.
 
     if not os.path.isfile(slicer.dicomDatabase.databaseFilename):
-      logging.info('DICOM database is not available. Will create a one.')
-      self.createDICOMDatabase()
+      dicomBrowser = ctk.ctkDICOMBrowser()
+      dicomBrowser.databaseDirectory = slicer.dicomDatabase.databaseDirectory
+      dicomBrowser.createNewDatabaseDirectory()
+      logging.info("DICOM database created")
     else:
       logging.info('DICOM database is available at '+slicer.dicomDatabase.databaseFilename)
     
