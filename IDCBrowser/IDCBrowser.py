@@ -99,7 +99,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     # This makes downloaded files relocatable along with the DICOM database in
     # recent Slicer versions.
 
-    if not slicer.dicomDatabase:
+    if not os.path.isfile(slicer.dicomDatabase.databaseFileName):
       logging.info('DICOM database is not available. Will create a one.')
       self.createDICOMDatabase()
     else:
