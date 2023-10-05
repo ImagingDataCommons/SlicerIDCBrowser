@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 2.8.9)
 
-project(TCIABrowser)
+project(IDCBrowser)
 
 #-----------------------------------------------------------------------------
 set(EXTENSION_HOMEPAGE "https://github.com/ImagingDataCommons/SlicerIDCBrowser")
@@ -15,7 +15,7 @@ find_package(Slicer REQUIRED)
 include(${Slicer_USE_FILE})
 
 #-----------------------------------------------------------------------------
-add_subdirectory(TCIABrowser)
+add_subdirectory(IDCBrowser)
 
 #-----------------------------------------------------------------------------
 include(${Slicer_EXTENSION_CPACK})
