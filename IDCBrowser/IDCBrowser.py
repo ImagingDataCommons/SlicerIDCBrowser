@@ -502,6 +502,24 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     if not self.initialConnection:
       self.getCollectionValues()
 
+    if not slicer.dicomDatabase:
+      logging.info('DICOM database is not available. Will create a one.')
+      self.createDICOMDatabase()
+    else:
+      logging.info('DICOM database is available at '+slicer.dicomDatabase.databaseFilename)
+      return
+
+  def createDICOMDatabase(self):
+    import os
+    documentsLocation = qt.QStandardPaths.DocumentsLocation
+    documents = qt.QStandardPaths.writableLocation(documentsLocation)
+    databaseDirectory = os.path.join(documents, slicer.app.applicationName + "DICOMDatabase")
+    logging.info("Creating DICOM database at: " + databaseDirectory)
+    dicomBrowser = ctk.ctkDICOMBrowser()
+    dicomBrowser.databaseDirectory = databaseDirectory
+    dicomBrowser.createNewDatabaseDirectory()
+    logging.info("DICOM database created")
+
   def cleanup(self):
     pass
 
@@ -1443,7 +1461,7 @@ class IDCBrowserLogic(ScriptedLoadableModuleLogic):
       s5cmd_version = "2.2.2"
       if productType == 'windows':
           urls.append(f'https://github.com/peak/s5cmd/releases/download/v{s5cmd_version}/s5cmd_{s5cmd_version}_Windows-64bit.zip')
-      elif os.name == 'osx':
+      elif productType == 'osx':
           urls.append(f'https://github.com/peak/s5cmd/releases/download/v{s5cmd_version}/s5cmd_{s5cmd_version}_macOS-64bit.tar.gz')
       else:
           # wild guess!          
