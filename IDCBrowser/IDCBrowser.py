@@ -98,6 +98,13 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     # Put the files downloaded from IDC in the DICOM database folder by default.
     # This makes downloaded files relocatable along with the DICOM database in
     # recent Slicer versions.
+
+    if not slicer.dicomDatabase:
+      logging.info('DICOM database is not available. Will create a one.')
+      self.createDICOMDatabase()
+    else:
+      logging.info('DICOM database is available at '+slicer.dicomDatabase.databaseFilename)
+    
     databaseDirectory = slicer.dicomDatabase.databaseDirectory
     self.storagePath = databaseDirectory + "/IDCLocal/"
     logging.debug("IDC downloaded data storage path: " + self.storagePath)
@@ -501,13 +508,6 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
       self.showBrowser()
     if not self.initialConnection:
       self.getCollectionValues()
-
-    if not slicer.dicomDatabase:
-      logging.info('DICOM database is not available. Will create a one.')
-      self.createDICOMDatabase()
-    else:
-      logging.info('DICOM database is available at '+slicer.dicomDatabase.databaseFilename)
-      return
 
   def createDICOMDatabase(self):
     import os
