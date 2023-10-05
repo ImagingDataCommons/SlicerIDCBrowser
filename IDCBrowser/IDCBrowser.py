@@ -103,6 +103,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
       dicomBrowser = ctk.ctkDICOMBrowser()
       dicomBrowser.databaseDirectory = slicer.dicomDatabase.databaseDirectory
       dicomBrowser.createNewDatabaseDirectory()
+      slicer.dicomDatabase.openDatabase(slicer.dicomDatabase.databaseFilename)
       logging.info("DICOM database created")
     else:
       logging.info('DICOM database is available at '+slicer.dicomDatabase.databaseFilename)
