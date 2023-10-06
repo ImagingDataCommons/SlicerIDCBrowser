@@ -41,15 +41,10 @@ class IDCBrowser(ScriptedLoadableModule):
     parent.title = "IDC Browser"
     parent.categories = ["Informatics"]
     parent.dependencies = []
-    parent.contributors = ["Alireza Mehrtash (SPL, BWH), Andrey Fedorov (SPL, BWH)"]
-    parent.helpText = """ Connect to IDC web archive and get a list of all available collections.
-    From collection selector choose a collection and the patients table will be populated. Click on a patient and
-    the studies for the patient will be presented. Do the same for studies. Finally choose a series from the series
-    table and download the images from the server by pressing the "Download and Load" button.
-    See <a href=\"http://wiki.slicer.org/slicerWiki/index.php/Documentation/Nightly/Extensions/IDCBrowser\">
+    parent.contributors = ["Andrey Fedorov (SPL, BWH)"]
+    parent.helpText = """ Explore the content of NCI Imaging Data Commons and download DICOM data into 3D Slicer. See <a href=\"https://github.com/ImagingDataCommons/SlicerIDCBrowser\">
     the documentation</a> for more information."""
-    parent.acknowledgementText = """ <img src=':Logos/QIICR.png'><br><br>
-    Supported by NIH U24 CA180918 (PIs Kikinis and Fedorov)
+    parent.acknowledgementText = """ This project has been funded in whole or in part with Federal funds from the National Cancer Institute, National Institutes of Health, under Task Order No. HHSN26110071 under Contract No. HHSN261201500003l.
     """
 
 
