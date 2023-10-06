@@ -905,8 +905,11 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
           fileList = slicer.dicomDatabase.filesForSeries(seriesUID)
           loadables = plugin.examine([fileList])
           self.clearStatus()
-          volume = plugin.load(loadables[0])
-          logging.debug("Loaded volume: " + volume.GetName())
+          if len(loadables)>0:
+            volume = plugin.load(loadables[0])
+            logging.debug("Loaded volume: " + volume.GetName())
+          else:
+            self.showStatus("Unable to load DICOM content. Please retry from DICOM Browser!")
 
   def downloadSelectedSeries(self):
     
