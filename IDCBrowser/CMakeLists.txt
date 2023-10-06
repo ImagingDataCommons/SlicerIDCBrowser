@@ -15,11 +15,10 @@ set(MODULE_PYTHON_RESOURCES
   Resources/Icons/downloadAndIndex.png
   Resources/Icons/downloadAndLoad.png
   Resources/Icons/report.png
-  Resources/Icons/IDCrowser.png
+  Resources/Icons/IDCBrowser.png
   Resources/Icons/stored.png
   Resources/Icons/download.png
   Resources/Icons/cancel.png
-  Resources/Logos/logo-vertical.png
   )
 
 #-----------------------------------------------------------------------------
