@@ -102,6 +102,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
       logging.info("DICOM database created")
     else:
       logging.info('DICOM database is available at '+slicer.dicomDatabase.databaseFilename)
+      slicer.dicomDatabase.updateSchemaIfNeeded()
     
     databaseDirectory = slicer.dicomDatabase.databaseDirectory
     self.storagePath = databaseDirectory + "/IDCLocal/"
@@ -506,17 +507,6 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
       self.showBrowser()
     if not self.initialConnection:
       self.getCollectionValues()
-
-  def createDICOMDatabase(self):
-    import os
-    documentsLocation = qt.QStandardPaths.DocumentsLocation
-    documents = qt.QStandardPaths.writableLocation(documentsLocation)
-    databaseDirectory = os.path.join(documents, slicer.app.applicationName + "DICOMDatabase")
-    logging.info("Creating DICOM database at: " + databaseDirectory)
-    dicomBrowser = ctk.ctkDICOMBrowser()
-    dicomBrowser.databaseDirectory = databaseDirectory
-    dicomBrowser.createNewDatabaseDirectory()
-    logging.info("DICOM database created")
 
   def cleanup(self):
     pass
@@ -926,8 +916,10 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
       #seriesSize = self.getSeriesSize(selectedSeries)
       logging.debug(self.progressMessage)
       try:
+        start_time = time.time()
         response = self.IDCClient.get_image(seriesInstanceUid=selectedSeries, downloadDir=self.extractedFilesDirectory)
         slicer.app.processEvents()
+        logging.debug("Downloaded images in %s seconds" % (time.time() - start_time))
         '''
         # Save server response as images.zip in current directory
         if response.getcode() == 200:
@@ -952,7 +944,9 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
             # Import the data into dicomAppWidget and open the dicom browser
           '''
         try:
+          start_time = time.time()
           self.addFilesToDatabase(selectedSeries)
+          logging.debug("Added files to database in %s seconds" % (time.time() - start_time))
           self.previouslyDownloadedSeries.append(selectedSeries)
           '''
           #          
