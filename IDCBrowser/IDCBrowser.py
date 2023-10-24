@@ -90,6 +90,9 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.currentAPIKey = self.slicerApiKey
     item = qt.QStandardItem()
 
+    # Load settings from the system
+    self.settings = qt.QSettings()
+
     # Put the files downloaded from IDC in the DICOM database folder by default.
     # This makes downloaded files relocatable along with the DICOM database in
     # recent Slicer versions.
@@ -105,10 +108,12 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
       slicer.dicomDatabase.updateSchemaIfNeeded()
     
     databaseDirectory = slicer.dicomDatabase.databaseDirectory
-    self.storagePath = databaseDirectory + "/IDCLocal/"
+    self.storagePath = self.settings.value("IDCCustomStoragePath")  if self.settings.contains("IDCCustomStoragePath") else databaseDirectory + "/IDCLocal/"
     logging.debug("IDC downloaded data storage path: " + self.storagePath)
     if not os.path.exists(self.storagePath):
       os.makedirs(self.storagePath)
+    if not self.settings.contains("IDCDefaultStoragePath"):
+      self.settings.setValue("IDCDefaultStoragePath", (databaseDirectory + "/IDCLocal/"))
 
     self.cachePath = self.storagePath + "/ServerResponseCache/"
     logging.debug("IDC cache path: " + self.cachePath)
@@ -442,8 +447,12 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     storagePathLabel = qt.QLabel("Storage Folder: ")
     self.storagePathButton = ctk.ctkDirectoryButton()
     self.storagePathButton.directory = self.storagePath
+    self.storageResetButton = qt.QPushButton("Reset Path")
+    self.storageResetButton.toolTip = "Resetting the storage folder to default."
+    self.storageResetButton.enabled  = True if self.settings.contains("IDCCustomStoragePath") else False
     settingsGridLayout.addWidget(storagePathLabel, 0, 0, 1, 1)
-    settingsGridLayout.addWidget(self.storagePathButton, 0, 1, 1, 4)
+    settingsGridLayout.addWidget(self.storagePathButton, 0, 1, 1, 2)
+    settingsGridLayout.addWidget(self.storageResetButton, 0, 3, 1, 1)
     self.apiSettingsPopup = APISettingsPopup.APISettingsPopup()
     self.clinicalPopup = clinicalDataPopup.clinicalDataPopup(self.cachePath, self.reportIcon)
 
@@ -492,6 +501,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.loadButton.connect('clicked(bool)', self.onLoadButton)
     self.cancelDownloadButton.connect('clicked(bool)', self.onCancelDownloadButton)
     self.storagePathButton.connect('directoryChanged(const QString &)', self.onStoragePathButton)
+    self.storageResetButton.connect('clicked(bool)', self.onStorageResetButton)
     self.clinicalDataRetrieveAction.connect('triggered()', self.onContextMenuTriggered)
     self.removeSeriesAction.connect('triggered()', self.onRemoveSeriesContextMenuTriggered)
     self.clinicalDataRetrieveAction.connect('triggered()', self.clinicalPopup.open)
@@ -578,6 +588,14 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
   def onStoragePathButton(self):
     self.storagePath = self.storagePathButton.directory
+    self.settings.setValue("IDCCustomStoragePath", self.storagePath)
+    self.storageResetButton.enabled = True
+
+  def onStorageResetButton(self):
+    self.storagePath = self.settings.value("IDCDefaultStoragePath")
+    self.settings.remove("IDCCustomStoragePath")
+    self.storageResetButton.enabled = False
+    self.storagePathButton.directory = self.storagePath
 
   def getCollectionValues(self):
     self.initialConnection = True
