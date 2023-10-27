@@ -23,7 +23,7 @@ from __main__ import vtk, qt, ctk, slicer
 
 import logging
 
-from IDCBrowserLib import APISettingsPopup, clinicalDataPopup, IDCClient
+from IDCBrowserLib import clinicalDataPopup, IDCClient
 #from IDCBrowserLib import IDCClient
 
 
@@ -84,10 +84,6 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
     self.downloadProgressBarWidgets = []
 
-    # self.progress.setWindowTitle("IDC Browser")
-    # setup API key
-    self.slicerApiKey = 'f88ff53d-882b-4c0d-b60c-0fb560e82cf1'
-    self.currentAPIKey = self.slicerApiKey
     item = qt.QStandardItem()
 
     # Load settings from the system
@@ -453,49 +449,14 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     settingsGridLayout.addWidget(storagePathLabel, 0, 0, 1, 1)
     settingsGridLayout.addWidget(self.storagePathButton, 0, 1, 1, 2)
     settingsGridLayout.addWidget(self.storageResetButton, 0, 3, 1, 1)
-    self.apiSettingsPopup = APISettingsPopup.APISettingsPopup()
     self.clinicalPopup = clinicalDataPopup.clinicalDataPopup(self.cachePath, self.reportIcon)
-
-    #
-    # Connection Area
-    #
-    # Add remove button
-    customAPILabel = qt.QLabel("Custom API Key: ")
-
-    addRemoveApisButton = qt.QPushButton("+")
-    addRemoveApisButton.toolTip = "Add or Remove APIs"
-    addRemoveApisButton.enabled = True
-    addRemoveApisButton.setMaximumWidth(20)
-
-    # API selection combo box
-    self.apiSelectionComboBox = qt.QComboBox()
-    self.apiSelectionComboBox.addItem('Slicer API')
-    settings = qt.QSettings()
-    settings.beginGroup("IDCBrowser/API-Keys")
-    self.userApiNames = settings.childKeys()
-
-    for api in self.userApiNames:
-      self.apiSelectionComboBox.addItem(api)
-    settings.endGroup()
-
-    self.connectButton = qt.QPushButton("Connect")
-    self.connectButton.toolTip = "Connect to IDC Server."
-    self.connectButton.enabled = True
-
-    settingsGridLayout.addWidget(customAPILabel, 1, 0, 1, 1)
-    settingsGridLayout.addWidget(addRemoveApisButton, 1, 1, 1, 1)
-    settingsGridLayout.addWidget(self.apiSelectionComboBox, 1, 2, 1, 2)
-    settingsGridLayout.addWidget(self.connectButton, 1, 4, 2, 1)
 
     # connections
     self.showBrowserButton.connect('clicked(bool)', self.onShowBrowserButton)
-    addRemoveApisButton.connect('clicked(bool)', self.apiSettingsPopup.open)
-    self.apiSelectionComboBox.connect('currentIndexChanged(QString)', self.apiKeySelected)
     self.collectionSelector.connect('currentIndexChanged(QString)', self.collectionSelected)
     self.patientsTableWidget.connect('itemSelectionChanged()', self.patientsTableSelectionChanged)
     self.studiesTableWidget.connect('itemSelectionChanged()', self.studiesTableSelectionChanged)
     self.seriesTableWidget.connect('itemSelectionChanged()', self.seriesSelected)
-    self.connectButton.connect('clicked(bool)', self.getCollectionValues)
     self.useCacheCeckBox.connect('stateChanged(int)', self.onUseCacheStateChanged)
     self.indexButton.connect('clicked(bool)', self.onIndexButton)
     self.loadButton.connect('clicked(bool)', self.onLoadButton)
@@ -520,16 +481,6 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
   def cleanup(self):
     pass
-
-  def apiKeySelected(self):
-    settings = qt.QSettings()
-    settings.beginGroup("IDCBrowser/API-Keys")
-
-    # self.connectButton.enabled = True
-    if self.apiSelectionComboBox.currentText == 'Slicer API':
-      self.currentAPIKey = self.slicerApiKey
-    else:
-      self.currentAPIKey = settings.value(self.apiSelectionComboBox.currentText)
 
   def onShowBrowserButton(self):
     self.showBrowser()
