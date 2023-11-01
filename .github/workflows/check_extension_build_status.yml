@@ -18,6 +18,9 @@ jobs:
       with:
         python-version: 3.11
 
+    - name: Install dependencies
+      run: pip install requests==2.31.0 pandas==2.1.1
+
     - name: Run Python script to calculate errors
       run: |
         python .github/get_build_status.py
