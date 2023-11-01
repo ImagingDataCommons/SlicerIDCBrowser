@@ -24,17 +24,9 @@ jobs:
     - name: Run Python script to calculate errors
       run: |
         python .github/get_build_status.py
+        echo "has_errors=$has_errors" >> $GITHUB_ENV  
       id: error_output
 
-    - name: Set the exit code and send notifications
-      run: |
-        has_errors="${{ steps.error_output.outputs.has_errors }}"
-        if [[ $has_errors == "true" ]]; then
-          echo "Build Failed"
-          # Add your notification steps here
-        else
-          echo "Build Successful"
-        fi
-
     - name: Set the exit code
-      run: exit ${{ steps.error_output.outputs.has_errors }}
+      if: env.has_errors
+      run: exit 1
