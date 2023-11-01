@@ -24,9 +24,4 @@ jobs:
     - name: Run Python script to calculate errors
       run: |
         python .github/get_build_status.py
-        echo "has_errors=$has_errors" >> $GITHUB_ENV  
-      id: error_output
-
-    - name: Set the exit code
-      if: env.has_errors == 'false'
-      run: exit 1
+        exit $error_sum
