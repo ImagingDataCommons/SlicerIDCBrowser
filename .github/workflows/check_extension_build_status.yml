@@ -26,5 +26,15 @@ jobs:
         python .github/get_build_status.py
       id: error_output
 
+    - name: Set the exit code and send notifications
+      run: |
+        has_errors="${{ steps.error_output.outputs.has_errors }}"
+        if [[ $has_errors == "true" ]]; then
+          echo "Build Failed"
+          # Add your notification steps here
+        else
+          echo "Build Successful"
+        fi
+
     - name: Set the exit code
       run: exit ${{ steps.error_output.outputs.has_errors }}
