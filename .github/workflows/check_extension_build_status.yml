@@ -1,0 +1,22 @@
+name: Check Extension Build Status
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: 0 12 */1 * *
+
+jobs:
+  calculate_errors:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Run Python script to calculate errors
+      run: |
+        python .github/get_build_status.py
+      id: error_output
+
+    - name: Set the exit code
+      run: exit ${{ steps.error_output.outputs.has_errors }}
