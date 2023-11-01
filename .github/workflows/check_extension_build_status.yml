@@ -28,5 +28,5 @@ jobs:
       id: error_output
 
     - name: Set the exit code
-      if: env.has_errors
+      if: env.has_errors == 'false'
       run: exit 1
