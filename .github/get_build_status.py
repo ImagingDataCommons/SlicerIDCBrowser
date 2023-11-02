@@ -3,7 +3,7 @@ import pandas as pd
 import sys
 pd.set_option("display.max_columns", None)
 pd.set_option("display.max_rows", None)
-slicerExtensionName ='ImageMaker'
+slicerExtensionName ='IDCBrowser'
 # API URL
 api_url = f"https://slicer.cdash.org/api/v1/index.php?project=SlicerPreview&filtercount=1&showfilters=1&field1=buildname&compare1=63&value1={slicerExtensionName}"
 
