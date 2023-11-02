@@ -1,0 +1,27 @@
+name: Check Extension Build Status
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: 0 12 */1 * *
+
+jobs:
+  calculate_errors:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.11
+
+    - name: Install dependencies
+      run: pip install requests==2.31.0 pandas==2.1.1
+
+    - name: Run Python script to calculate errors
+      run: |
+        python .github/get_build_status.py
+
