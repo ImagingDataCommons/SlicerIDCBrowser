@@ -1,6 +1,6 @@
 import requests
 import pandas as pd
-
+import sys
 pd.set_option("display.max_columns", None)
 pd.set_option("display.max_rows", None)
 slicerExtensionName ='IDCBrowser'
@@ -44,8 +44,8 @@ if response.status_code == 200:
     error_sum = df['ConfigureErrors'].sum()+ df['CompilationErrors'].sum()+df['TestFail'].sum()
     has_errors = error_sum > 0
     if has_errors:
-      print("Build Failed")
+      sys.exit(1)
     else:
-      print("Build Successful")
+      sys.exit(0)
 else:
     print(f"Failed to retrieve data. Status code: {response.status_code}")

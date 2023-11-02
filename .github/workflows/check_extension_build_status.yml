@@ -24,4 +24,4 @@ jobs:
     - name: Run Python script to calculate errors
       run: |
         python .github/get_build_status.py
-        exit $error_sum
+
