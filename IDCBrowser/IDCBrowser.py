@@ -23,6 +23,8 @@ from __main__ import vtk, qt, ctk, slicer
 
 import logging
 
+slicer.util.pip_install("pandas")
+
 from IDCBrowserLib import clinicalDataPopup, IDCClient
 #from IDCBrowserLib import IDCClient
 
@@ -572,7 +574,8 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.showStatus("Getting Available Collections")
     try:
       responseString = self.IDCClient.get_collection_values()
-      logging.debug("getCollectionValues: responseString = " + responseString)
+      logging.debug("getCollectionValues: responseString = " + str(responseString))
+      print(responseString)
       self.populateCollectionsTreeView(responseString)
       self.clearStatus()
 
@@ -1041,22 +1044,19 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     compressionRatio = 1.5
     size = float(jsonResponse[0]['TotalSizeInBytes']) / compressionRatio
     return size
-
+  
   def populateCollectionsTreeView(self, responseString):
-    collections = json.loads(responseString)
-    # populate collection selector
-    n = 0
-    self.collectionSelector.disconnect('currentIndexChanged(QString)')
-    self.collectionSelector.clear()
-    self.collectionSelector.connect('currentIndexChanged(QString)', self.collectionSelected)
+      collectionNames = sorted(responseString)
 
-    collectionNames = []
-    for collection in collections:
-      collectionNames.append(collection['Collection'])
-    collectionNames.sort()
+      self.collectionSelector.disconnect('currentIndexChanged(QString)')
+      self.collectionSelector.clear()
+      self.collectionSelector.connect('currentIndexChanged(QString)', self.collectionSelected)
 
-    for name in collectionNames:
-      self.collectionSelector.addItem(name)
+      n = 0  # If you intend to use the 'n' variable for a specific purpose, it's kept here.
+
+      for name in collectionNames:
+          self.collectionSelector.addItem(name)
+
 
   def populatePatientsTableWidget(self, responseString):
     logging.debug("populatePatientsTableWidget")

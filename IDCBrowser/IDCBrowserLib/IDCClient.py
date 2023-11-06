@@ -15,7 +15,7 @@
 #
 import json, string, os
 import requests, logging
-
+import pandas as pd
 
 # import TCIABrowserLib
 
@@ -34,29 +34,9 @@ class IDCClient:
     GET_PATIENT = "getPatient"
 
     # use Slicer API key by default
-    def __init__(self, baseUrl='https://dev-api.canceridc.dev/v2'): # v2 dev
-    # def __init__(self, baseUrl='https://dev-api.canceridc.dev/v1'): # v1 dev
-    # def __init__(self, baseUrl='http://localhost:8095/v2'):  # v2 local
-        self.baseUrl = baseUrl
+    def __init__(self, csv_index_path='/home/vamsi/Downloads/index.csv'): 
         self.s5cmdPath = None
-
-    def execute_get(self, url, params=None, json=None):
-        logging.debug("GETting %s with params %s", url, params)
-        response = requests.get(url, params=params, json=json)
-        if response.status_code != 200:
-            # Print the error code and message if something went wrong
-            print('Request failed: {}'.format(response.reason))
-
-        return response
-
-    def execute_post(self, url, params=None, json=None):
-        logging.debug("POSTing %s with params %s", url, params)
-        response = requests.post(url, params=params, json=json)
-        if response.status_code != 200:
-            # Print the error code and message if something went wrong
-            print('Request failed: {}'.format(response.reason))
-
-        return response
+        self.index = pd.read_csv(csv_index_path)
 
     def get_modality_values(self, collection=None, bodyPartExamined=None, modality=None, outputFormat="json"):
         serviceUrl = self.baseUrl + "/" + self.GET_MODALITY_VALUES
@@ -73,17 +53,12 @@ class IDCClient:
         '''
         return None
 
-    def get_collection_values(self, outputFormat="json"):
-        url = '{}/collections'.format(self.baseUrl)
-        resp = self.execute_get(url)
+    def get_collection_values(self, outputFormat="list"):
+        # Use the DataFrame to get unique collection IDs
+        unique_collections = self.index['collection_id'].unique()
+        return unique_collections.tolist()
 
-        idc_collections = []
 
-        for c in resp.json()['collections']:
-            idc_collections.append({"Collection": c["collection_id"]})
-
-        logging.debug("Get collections response: %s", json.dumps(idc_collections))
-        return json.dumps(idc_collections)
 
     def get_body_part_values(self, collection=None, bodyPartExamined=None, modality=None, outputFormat="csv"):
         return None
@@ -325,7 +300,7 @@ class IDCClient:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     client = IDCClient()
-    r = client.get_image('1.3.6.1.4.1.14519.5.2.1.6834.5010.130448511786154037246331774347', '.', download=False)
-    r = client.get_patient(collection='4d_lung', outputFormat="json")
-    r = client.get_patient_study( collection='4d_lung', patientId='108_HM10395', studyInstanceUid='1.3.6.1.4.1.14519.5.2.1.6834.5010.185173640297170335553556115001', outputFormat="json")
-    r = client.get_series(collection='4d_lung', patientId='108_HM10395', studyInstanceUID='1.3.6.1.4.1.14519.5.2.1.6834.5010.185173640297170335553556115001', modality=None, outputFormat="json")
+    # r = client.get_image('1.3.6.1.4.1.14519.5.2.1.6834.5010.130448511786154037246331774347', '.', download=False)
+    # r = client.get_patient(collection='4d_lung', outputFormat="json")
+    # r = client.get_patient_study( collection='4d_lung', patientId='108_HM10395', studyInstanceUid='1.3.6.1.4.1.14519.5.2.1.6834.5010.185173640297170335553556115001', outputFormat="json")
+    # r = client.get_series(collection='4d_lung', patientId='108_HM10395', studyInstanceUID='1.3.6.1.4.1.14519.5.2.1.6834.5010.185173640297170335553556115001', modality=None, outputFormat="json")
