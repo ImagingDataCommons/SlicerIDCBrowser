@@ -1035,14 +1035,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     return totalItems
 
   def getSeriesSize(self, seriesInstanceUID):
-    response = self.IDCClient.get_series_size(seriesInstanceUID)
-    responseString = response.read()[:]
-    jsonResponse = json.loads(responseString)
-    # IDCBrowser returns the total size of the series while we are
-    # recieving series in compressed zip format. The compression ration
-    # is an approximation.
-    compressionRatio = 1.5
-    size = float(jsonResponse[0]['TotalSizeInBytes']) / compressionRatio
+    size = self.IDCClient.get_series_size(seriesInstanceUID)
     return size
   
   def populateCollectionsTreeView(self, responseString):

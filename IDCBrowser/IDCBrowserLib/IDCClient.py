@@ -38,20 +38,6 @@ class IDCClient:
         self.s5cmdPath = None
         self.index = pd.read_csv(csv_index_path)
 
-    def get_modality_values(self, collection=None, bodyPartExamined=None, modality=None, outputFormat="json"):
-        serviceUrl = self.baseUrl + "/" + self.GET_MODALITY_VALUES
-        queryParameters = {"Collection": collection, "BodyPartExamined": bodyPartExamined, "Modality": modality,
-                           "format": outputFormat}
-        resp = self.execute(serviceUrl, queryParameters)
-        return resp
-
-    def get_manufacturer_values(self, collection=None, bodyPartExamined=None, modality=None, outputFormat="json"):
-        '''
-        serviceUrl = self.baseUrl + "/" + self.GET_MANUFACTURER_VALUES
-        queryParameters = {"Collection" : collection , "BodyPartExamined" : bodyPartExamined , "Modality" : modality , "format" : outputFormat }
-        resp = self.execute(serviceUrl , queryParameters)
-        '''
-        return None
 
     def get_collection_values(self, outputFormat="list"):
         # Use the DataFrame to get unique collection IDs
@@ -59,37 +45,8 @@ class IDCClient:
         return unique_collections.tolist()
 
 
-
-    def get_body_part_values(self, collection=None, bodyPartExamined=None, modality=None, outputFormat="csv"):
-        return None
-        serviceUrl = self.baseUrl + "/" + self.GET_BODY_PART_VALUES
-        queryParameters = {"Collection": collection, "BodyPartExamined": bodyPartExamined, "Modality": modality,
-                           "format": outputFormat}
-        resp = self.execute(serviceUrl, queryParameters)
-        return resp
-
-    '''
-    def get_patient_study(self,collection = None , patientId = None , studyInstanceUid = None , outputFormat = "json" ):
-        return None
-        serviceUrl = self.baseUrl + "/" + self.GET_PATIENT_STUDY
-        queryParameters = {"Collection" : collection , "PatientID" : patientId , "StudyInstanceUID" : studyInstanceUid , "format" : outputFormat }
-        resp = self.execute(serviceUrl , queryParameters)
-        return resp
-
-
-    def get_series(self,collection = None , patientId = None , studyInstanceUID = None, modality = None , outputFormat = "json" ):
-        return None
-        serviceUrl = self.baseUrl + "/" + self.GET_SERIES
-        queryParameters = {"Collection" : collection , "PatientID" : patientId ,"StudyInstanceUID": studyInstanceUID, "Modality" : modality , "format" : outputFormat }
-        resp = self.execute(serviceUrl , queryParameters)
-        return resp
-    '''
-
     def get_series_size(self, seriesInstanceUid):
-        return None
-        serviceUrl = self.baseUrl + "/" + self.GET_SERIES_SIZE
-        queryParameters = {"SeriesInstanceUID": seriesInstanceUid}
-        resp = self.execute(serviceUrl, queryParameters)
+        resp = self.index[['SeriesInstanceUID']==seriesInstanceUid]['series_size_MB'].iloc[0]
         return resp
 
     def get_patient(self, collection=None, outputFormat="json"):
