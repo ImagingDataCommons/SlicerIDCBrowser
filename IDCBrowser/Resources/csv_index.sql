@@ -21,6 +21,5 @@ ROUND(SUM(instance_size)/(1000*1000), 2) as series_size_MB,
 FROM
   `bigquery-public-data.idc_v15.dicom_all`
 
-where collection_id='qin_prostate_repeatability' and patientid like '%00002'
 GROUP BY
 SeriesInstanceUID

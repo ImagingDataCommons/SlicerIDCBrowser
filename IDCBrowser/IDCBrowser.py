@@ -586,7 +586,6 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     try:
       responseString = self.IDCClient.get_collection_values()
       logging.debug("getCollectionValues: responseString = " + str(responseString))
-      print(responseString)
       self.populateCollectionsTreeView(responseString)
       self.clearStatus()
 
@@ -627,13 +626,13 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
       self.clinicalDataRetrieveAction.enabled = True
 
     patientsList = None
-    # if os.path.isfile(cacheFile) and self.useCacheFlag:
-    #   f = codecs.open(cacheFile, 'rb', encoding='utf8')
-    #   patientsList = f.read()[:]
-    #   f.close()
+    if os.path.isfile(cacheFile) and self.useCacheFlag:
+      f = codecs.open(cacheFile, 'rb', encoding='utf8')
+      patientsList = f.read()[:]
+      f.close()
 
-    #   if not len(patientsList):
-    #     patientsList = None
+      if not len(patientsList):
+        patientsList = None
 
     if patientsList:
       self.populatePatientsTableWidget(patientsList)
