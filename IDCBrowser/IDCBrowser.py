@@ -23,7 +23,18 @@ from __main__ import vtk, qt, ctk, slicer
 
 import logging
 
-slicer.util.pip_install("pandas")
+import pkg_resources
+
+def is_module_installed(module_name):
+    try:
+        pkg_resources.get_distribution(module_name)
+        return True
+    except pkg_resources.DistributionNotFound:
+        return False
+
+if not is_module_installed('pandas'):
+    slicer.util.pip_install('pandas')
+
 
 from IDCBrowserLib import clinicalDataPopup, IDCClient
 #from IDCBrowserLib import IDCClient

@@ -34,9 +34,10 @@ class IDCClient:
     GET_PATIENT = "getPatient"
 
     # use Slicer API key by default
-    def __init__(self, csv_index_path='https://github.com/vkt1414/SlicerIDCBrowser/releases/download/v0.0.1/index.csv'): 
+    def __init__(self, csv_index_path='https://github.com/vkt1414/SlicerIDCBrowser/releases/download/v0.0.2/index_v2.csv'): 
         self.s5cmdPath = None
-        self.index = pd.read_csv(csv_index_path)
+        self.index = pd.read_csv(csv_index_path,dtype={14: str, 15: str})
+        self.index = self.index.astype(str).replace('nan', '')
 
 
     def get_collection_values(self, outputFormat="list"):
@@ -63,8 +64,12 @@ class IDCClient:
         #patient_df['patient_instance_count'] = patient_df.groupby('PatientID')['instanceCount'].transform('count')
 
         patient_df=patient_df.rename(columns={'collection_id':'Collection'})
-        #patient_df = patient_df[['PatientID', 'PatientSex', 'Collection', 'PatientAge', 'patient_size_MB', 'patient_study_count', 'patient_series_count', 'patient_instance_count']]
-        patient_df = patient_df[['PatientID']]
+        patient_df = patient_df[['PatientID', 'PatientSex', 'PatientAge']]
+        patient_df = patient_df.groupby('PatientID').agg({
+            'PatientSex': lambda x: ','.join(x[x != ''].unique()),
+            'PatientAge': lambda x: ','.join(x[x != ''].unique())
+        }).reset_index()
+
         patient_df = patient_df.drop_duplicates().sort_values(by='PatientID')
         # Convert DataFrame to a list of dictionaries for the API-like response
         idc_response = patient_df.to_dict(orient="records")
@@ -92,8 +97,17 @@ class IDCClient:
 
         #patient_study_df = patient_study_df[['PatientID', 'PatientSex', 'Collection', 'PatientAge', 'StudyInstanceUID', 'StudyDate', 'StudyDescription', 'patient_study_size_MB', 'SeriesCount', 'patient_study_instance_count']]
         patient_study_df = patient_study_df[['StudyInstanceUID', 'StudyDate', 'StudyDescription', 'SeriesCount']]
+        # Group by 'StudyInstanceUID' to make sure there is only one studyid in the GUI
+        patient_study_df = patient_study_df.groupby('StudyInstanceUID').agg({
+            'StudyDate': lambda x: ','.join(x[x != ''].unique()),
+            'StudyDescription': lambda x: ','.join(x[x != ''].unique()),
+            'SeriesCount': lambda x: int(x[x != ''].iloc[0]) if len(x[x != '']) > 0 else 0
+        }).reset_index()
 
-        patient_study_df = patient_study_df.drop_duplicates()
+        patient_study_df = patient_study_df.drop_duplicates().sort_values(by=['StudyDate','StudyDescription','SeriesCount'])
+
+
+
         # Convert DataFrame to a list of dictionaries for the API-like response
         idc_response = patient_study_df.to_dict(orient="records")
 
@@ -116,9 +130,9 @@ class IDCClient:
 
         patient_series_df = patient_series_df.rename(columns={'collection_id': 'Collection', 'instanceCount': 'instance_count'})
         patient_series_df['ImageCount']=1
-        patient_series_df = patient_series_df[['StudyInstanceUID', 'SeriesInstanceUID', 'Modality', 'Collection', 'Manufacturer', 'ManufacturerModelName', 'series_size_MB', 'instance_count', 'ImageCount']]
+        patient_series_df = patient_series_df[['StudyInstanceUID', 'SeriesInstanceUID', 'Modality', 'SeriesDate', 'Collection', 'BodyPartExamined', 'SeriesDescription', 'Manufacturer', 'ManufacturerModelName', 'series_size_MB','SeriesNumber', 'instance_count', 'ImageCount']]
 
-        patient_series_df = patient_series_df.drop_duplicates()
+        patient_series_df = patient_series_df.drop_duplicates().sort_values(by=['Modality','SeriesDate','SeriesDescription','BodyPartExamined', 'SeriesNumber'])
         # Convert DataFrame to a list of dictionaries for the API-like response
         idc_response = patient_series_df.to_dict(orient="records")
 
