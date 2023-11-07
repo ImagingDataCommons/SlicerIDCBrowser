@@ -50,52 +50,26 @@ class IDCClient:
         return resp
 
     def get_patient(self, collection=None, outputFormat="json"):
-        filters = {
-            "collection_id": [collection],
-        }
-        cohortSpec = {"name": "testcohort",
-                      "description": "Test description",
-                      "filters": filters}
-        params = dict(
-            sql=False,
-            page_size=2000
-        )
+        if collection is not None:
+            patient_df = self.index[self.index['collection_id'] == collection]
+        else:
+            patient_df = self.index
 
-        fields = [
-            'Collection_ID',
-            'PatientID',
-            'counts',
-            'sizes'
-            ]
+        patient_df['patient_size_MB'] = patient_df.groupby('PatientID')['series_size_MB'].transform('sum')
+        patient_df['patient_study_count'] = patient_df.groupby('PatientID')['StudyInstanceUID'].transform('count')
+        patient_df['patient_series_count'] = patient_df.groupby('PatientID')['SeriesInstanceUID'].transform('count')
+        patient_df['patient_instance_count'] = patient_df.groupby('PatientID')['instanceCount'].transform('count')
 
-        queryPreviewBody = {"cohort_def": cohortSpec,
-                            "fields": fields}
+        patient_df=patient_df.rename(columns={'collection_id':'Collection'})
 
-        url = '{}/cohorts/query/preview'.format(self.baseUrl)
-        resp = self.execute_post(url, params=params, json=queryPreviewBody)
+        patient_df = patient_df[['PatientID', 'PatientSex', 'Collection', 'PatientAge', 'patient_size_MB', 'patient_study_count', 'patient_series_count', 'patient_instance_count']]
 
-        # print(resp.json())
+        # Convert DataFrame to a list of dictionaries for the API-like response
+        idc_response = patient_df.to_dict(orient="records")
 
-        idc_json = resp.json()['query_results']['json']
+        logging.debug("Get patient response: %s", str(idc_response))
 
-        idc_response = []
-        for idc_item in idc_json:
-            # print(idc_item)
-            idc_item = {"PatientID": idc_item['PatientID'],
-                        'PatientName': '',
-                        'PatientSex': '',
-                        'Collection': collection,
-                        'PatientAge': '',
-                        'patient_size_MB': idc_item['patient_size_MB'],
-                        'study_count': idc_item['study_count'],
-                        'series count': idc_item['series_count'],
-                        'instance_count': idc_item['instance_count']
-                        }
-            idc_response.append(idc_item)
-
-        logging.debug("Get patient response: %s", json.dumps(idc_response, indent=2))
-
-        return json.dumps(idc_response)
+        return idc_response
 
     def get_patient_study(self, collection=None, patientId=None, studyInstanceUid=None, outputFormat="json"):
 
