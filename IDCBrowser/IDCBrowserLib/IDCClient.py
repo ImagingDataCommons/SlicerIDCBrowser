@@ -34,7 +34,7 @@ class IDCClient:
     GET_PATIENT = "getPatient"
 
     # use Slicer API key by default
-    def __init__(self, csv_index_path='https://github.com/vkt1414/SlicerIDCBrowser/releases/download/untagged-f8cf6f79435441e60999/index.csv'): 
+    def __init__(self, csv_index_path='https://github.com/vkt1414/SlicerIDCBrowser/releases/download/v0.0.1/index.csv'): 
         self.s5cmdPath = None
         self.index = pd.read_csv(csv_index_path)
 
