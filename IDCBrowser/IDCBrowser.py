@@ -616,13 +616,13 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
       self.clinicalDataRetrieveAction.enabled = True
 
     patientsList = None
-    if os.path.isfile(cacheFile) and self.useCacheFlag:
-      f = codecs.open(cacheFile, 'rb', encoding='utf8')
-      patientsList = f.read()[:]
-      f.close()
+    # if os.path.isfile(cacheFile) and self.useCacheFlag:
+    #   f = codecs.open(cacheFile, 'rb', encoding='utf8')
+    #   patientsList = f.read()[:]
+    #   f.close()
 
-      if not len(patientsList):
-        patientsList = None
+    #   if not len(patientsList):
+    #     patientsList = None
 
     if patientsList:
       self.populatePatientsTableWidget(patientsList)
@@ -1055,7 +1055,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     logging.debug("populatePatientsTableWidget")
     self.clearPatientsTableWidget()
     table = self.patientsTableWidget
-    patients = json.loads(responseString)
+    patients = responseString
     table.setRowCount(len(patients))
     n = 0
     for patient in patients:
@@ -1086,7 +1086,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.studiesSelectNoneButton.enabled = True
     # self.clearStudiesTableWidget()
     table = self.studiesTableWidget
-    studies = json.loads(responseString)
+    studies = responseString
 
     n = self.studiesTableRowCount
     table.setRowCount(n + len(studies))
@@ -1119,7 +1119,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     logging.debug("populateSeriesTableWidget")
     # self.clearSeriesTableWidget()
     table = self.seriesTableWidget
-    seriesCollection = json.loads(responseString)
+    seriesCollection = responseString
     self.seriesSelectAllButton.enabled = True
     self.seriesSelectNoneButton.enabled = True
 
