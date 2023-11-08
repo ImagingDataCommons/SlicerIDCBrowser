@@ -1,6 +1,5 @@
 import os
 import re
-import urllib
 import requests
 from google.cloud import bigquery
 
@@ -9,8 +8,10 @@ project_id='idc-external-025'
 client = bigquery.Client(project=project_id)
 
 # Get current index version
-url='https://raw.githubusercontent.com/vkt1414/SlicerIDCBrowser/csv_index/IDCBrowser/Resources/csv_index.sql'
-current_index_version = re.search(r'idc_v(\d+)', urllib.request.urlopen(url).read().decode('utf-8')).group(1)
+file_path='IDCBrowser/Resources/csv_index.sql'
+with open(file_path, 'r') as file:
+    content = file.read()
+current_index_version = re.search(r'idc_v(\d+)', content).group(1)
 print('idc_version_in_index: '+current_index_version +'\n')
 
 # Get latest IDC release version
@@ -22,10 +23,11 @@ print('latest_idc_release_version: '+latest_idc_release_version +'\n')
 # Check if current index version is outdated
 if current_index_version < latest_idc_release_version:
   # Update SQL query
-  modified_sql_query = re.sub(r'idc_v(\d+)', 'idc_v'+latest_idc_release_version, urllib.request.urlopen(url).read().decode('utf-8'))
+  modified_sql_query = re.sub(r'idc_v(\d+)', 'idc_v'+latest_idc_release_version, content)
   print('modified_sql_query:\n'+modified_sql_query)
-  # Save the modified SQL query as a SQL file
-  with open('csv_index.sql', 'w') as file:
+  
+  # Overwrite the existing SQL file with the modified SQL query
+  with open(file_path, 'w') as file:
     file.write(modified_sql_query)
   
   # Execute SQL query and save result as CSV
