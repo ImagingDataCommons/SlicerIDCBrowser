@@ -71,3 +71,12 @@ if current_index_version < latest_idc_release_version:
         print('Error uploading asset: ' + response.text)
   else:
     print('Error creating release: ' + response.text)
+
+  # Update csv_index_path in IDCClient.py
+  idcclient_path = 'IDCBrowser/IDCBrowserLib/IDCClient.py'
+  with open(idcclient_path, 'r') as file:
+    idcclient_content = file.read()
+  new_csv_index_path = 'https://github.com/vkt1414/SlicerIDCBrowser/releases/download/v' + latest_idc_release_version + '/' + csv_file_name
+  updated_idcclient_content = re.sub(r"https://github.com/vkt1414/SlicerIDCBrowser/releases/download/v\d+\.\d+\.\d+/index_v\d+\.csv", new_csv_index_path, idcclient_content)
+  with open(idcclient_path, 'w') as file:
+    file.write(updated_idcclient_content)
