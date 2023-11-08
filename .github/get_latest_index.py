@@ -1,7 +1,7 @@
 import re, urllib
 from google.cloud import bigquery
-from google.colab import auth
-import pandas_gbq
+
+
 project_id='idc-external-025'
 client = bigquery.Client(project=project_id)
 
