@@ -1,0 +1,31 @@
+name: Check idc releases and update index accordingly
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: 0 12 */1 * *
+jobs:
+  get_list_of_idc_releases:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.11
+
+    - name: Install dependencies
+      run: pip install requests==2.31.0 pandas==2.1.1 google-cloud-bigquery==3.12.0 pyarrow==13.0.0 
+    
+    - name: Authorize Google Cloud
+      uses: google-github-actions/auth@v1
+      with:
+        credentials_json: ${{ secrets.SERVICE_ACCOUNT_KEY }}
+        create_credentials_file: true
+        export_environment_variables: true    
+  
+    - name: Run script to get the latest idc release
+      run: |
+        python .github/get_latest_index.py
