@@ -4,7 +4,9 @@ on:
   workflow_dispatch:
   schedule:
     - cron: 0 12 */1 * *
-
+  push:
+    branches:
+      - csv_index
 jobs:
   calculate_errors:
     runs-on: ubuntu-latest
