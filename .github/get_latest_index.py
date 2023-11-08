@@ -11,17 +11,19 @@ client = bigquery.Client(project=project_id)
 # Get current index version
 url='https://raw.githubusercontent.com/vkt1414/SlicerIDCBrowser/csv_index/IDCBrowser/Resources/csv_index.sql'
 current_index_version = re.search(r'idc_v(\d+)', urllib.request.urlopen(url).read().decode('utf-8')).group(1)
+print('idc_version_in_index: '+current_index_version +'\n')
 
 # Get latest IDC release version
 view_id = "bigquery-public-data.idc_current.dicom_all_view"
 view = client.get_table(view_id)
 latest_idc_release_version= re.search(r'idc_v(\d+)', view.view_query).group(1)
+print('latest_idc_release_version: '+latest_idc_release_version +'\n')
 
 # Check if current index version is outdated
 if current_index_version < latest_idc_release_version:
   # Update SQL query
   modified_sql_query = re.sub(r'idc_v(\d+)', 'idc_v'+latest_idc_release_version, urllib.request.urlopen(url).read().decode('utf-8'))
-  
+  print('modified_sql_query:\n'+modified_sql_query)
   # Save the modified SQL query as a SQL file
   with open('csv_index.sql', 'w') as file:
     file.write(modified_sql_query)

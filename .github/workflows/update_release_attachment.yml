@@ -27,5 +27,7 @@ jobs:
         export_environment_variables: true    
   
     - name: Run script to get the latest idc release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         python .github/get_latest_index.py
