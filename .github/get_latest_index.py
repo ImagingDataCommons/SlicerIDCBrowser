@@ -50,7 +50,7 @@ if current_index_version < latest_idc_release_version:
     'prerelease': False,
     'generate_release_notes': False
   }
-  response = requests.post('https://api.github.com/repos/OWNER/REPO/releases', headers=headers, json=data)
+  response = requests.post('https://api.github.com/repos/vkt1414/SlicerIDCBrowser/releases', headers=headers, json=data)
 
   # Check if release was created successfully
   if response.status_code == 201:
