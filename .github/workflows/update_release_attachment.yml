@@ -17,7 +17,7 @@ jobs:
         python-version: 3.11
 
     - name: Install dependencies
-      run: pip install requests==2.31.0 pandas==2.1.1 google-cloud-bigquery==3.12.0 pyarrow==13.0.0 
+      run: pip install requests==2.31.0 pandas==2.1.1 google-cloud-bigquery==3.12.0 pyarrow==13.0.0  db-dtypes==1.1.1
     
     - name: Authorize Google Cloud
       uses: google-github-actions/auth@v1
