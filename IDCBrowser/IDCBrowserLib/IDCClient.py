@@ -56,8 +56,8 @@ class IDCClient:
             patient_df = self.index[self.index['collection_id'] == collection].copy()  # Make a copy
 
         else:
-            #patient_df = self.index.copy()  # Make a copy
-            patient_df = self.index[self.index['collection_id'] == 'nsclc_radiomics'].copy() 
+            patient_df = self.index.copy()  # Make a copy
+            #patient_df = self.index[self.index['collection_id'] == 'nsclc_radiomics'].copy() 
         #patient_df['patient_size_MB'] = patient_df.groupby('PatientID')['series_size_MB'].transform('sum')
         #patient_df['patient_study_count'] = patient_df.groupby('PatientID')['StudyInstanceUID'].transform('count')
         #patient_df['patient_series_count'] = patient_df.groupby('PatientID')['SeriesInstanceUID'].transform('count')
@@ -160,7 +160,7 @@ class IDCClient:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     client = IDCClient()
-    # r = client.get_image('1.3.6.1.4.1.14519.5.2.1.6834.5010.130448511786154037246331774347', '.', download=False)
-    # r = client.get_patient(collection='4d_lung', outputFormat="json")
-    # r = client.get_patient_study( collection='4d_lung', patientId='108_HM10395', studyInstanceUid='1.3.6.1.4.1.14519.5.2.1.6834.5010.185173640297170335553556115001', outputFormat="json")
-    # r = client.get_series(collection='4d_lung', patientId='108_HM10395', studyInstanceUID='1.3.6.1.4.1.14519.5.2.1.6834.5010.185173640297170335553556115001', modality=None, outputFormat="json")
+    r = client.get_image('1.3.6.1.4.1.14519.5.2.1.6834.5010.130448511786154037246331774347', '.', download=False)
+    r = client.get_patient(collection='4d_lung', outputFormat="json")
+    r = client.get_patient_study( collection='4d_lung', patientId='108_HM10395', studyInstanceUid='1.3.6.1.4.1.14519.5.2.1.6834.5010.185173640297170335553556115001', outputFormat="json")
+    r = client.get_series(collection='4d_lung', patientId='108_HM10395', studyInstanceUID='1.3.6.1.4.1.14519.5.2.1.6834.5010.185173640297170335553556115001', modality=None, outputFormat="json")
