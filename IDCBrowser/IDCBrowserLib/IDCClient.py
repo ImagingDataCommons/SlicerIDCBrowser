@@ -24,27 +24,24 @@ import pandas as pd
 #
 class IDCClient:
 
-    def __init__(self, csv_index_url="https://api.github.com/repos/ImagingDataCommons/SlicerIDCBrowser/releases/latest"):
+    def __init__(self, csv_url='https://github.com/ImagingDataCommons/SlicerIDCBrowser/releases/download/latest/idc_index.csv.zip'): 
         self.s5cmdPath = None
+        '''
         # Get the JSON data of the latest release
         data = requests.get(csv_index_url).json()
         print('Using Index of IDC Version '+data['name'])
-        # Find the URL of the .csv file
+        # Find the URL of the .csv.zip file
         csv_url = None
         for asset in data["assets"]:
             # Check if the name of the asset ends with .csv
-            if asset["name"].endswith(".csv"):
+            if asset["name"].endswith(".csv.zip"):
                 csv_url = asset["browser_download_url"]
                 break
-        # Check if the URL is found
-        if csv_url is not None:
-            # Read the .csv file into a pandas dataframe
-            self.index = pd.read_csv(csv_url, dtype={14: str, 15: str,16: str})
-            self.index = self.index.astype(str).replace('nan', '')
-        else:
-            # Raise an exception if the .csv file is not found
-            raise FileNotFoundError("The .csv file is not found in the latest release")
-
+        '''
+        # TODO: for now, use fixed path
+        # Read the .csv file into a pandas dataframe
+        self.index = pd.read_csv(csv_url, dtype={14: str, 15: str,16: str})
+        self.index = self.index.astype(str).replace('nan', '')
 
     def get_collection_values(self, outputFormat="list"):
         # Use the DataFrame to get unique collection IDs

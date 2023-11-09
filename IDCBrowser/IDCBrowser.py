@@ -69,7 +69,9 @@ class IDCBrowser(ScriptedLoadableModule):
 class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
   def setup(self):
-
+    """
+    Called when the user opens the module the first time and the widget is initialized.
+    """
     ScriptedLoadableModuleWidget.setup(self)
 
     self.loadToScene = False
@@ -80,6 +82,24 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
         self.reloadCollapsibleButton.collapsed = True
 
     self.logic = IDCBrowserLogic()
+
+    if self.logic.setupIDCindex():
+      self.IDCClient = IDCClient.IDCClient(self.logic.getIDCIndexPath())
+    else:
+      # if user declined the download, will load from URL
+      self.IDCClient = IDCClient.IDCClient()
+
+    if self.logic.gets5cmdPath() == '':
+      print("path is blank")
+      self.logic.setups5cmd()
+      if self.logic.gets5cmdPath() == '':
+        logging.error("Unable to locate or setup s5cmd.")
+        return
+      print("s5cmd path: " + self.logic.gets5cmdPath())
+      logging.debug("s5cmd path: " + self.logic.gets5cmdPath())
+    else:
+      print("Logic says s5cmd is here: "+self.logic.gets5cmdPath())
+    self.IDCClient.s5cmdPath = self.logic.gets5cmdPath()
 
     self.browserWidget = qt.QWidget()
     self.browserWidget.setWindowTitle('IDC Browser')
@@ -564,24 +584,6 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
   def getCollectionValues(self):
     self.initialConnection = True
 
-    # TODO: this needs to go to some other function that is called just
-    # once in the module lifetime, but I don't know what that function is...
-    # Instantiate IDCClient object
-    self.IDCClient = IDCClient.IDCClient()
-
-    if self.logic.gets5cmdPath() == '':
-      print("path is blank")
-      self.logic.setups5cmd()
-      if self.logic.gets5cmdPath() == '':
-        logging.error("Unable to locate or setup s5cmd.")
-        return
-      print("s5cmd path: " + self.logic.gets5cmdPath())
-      logging.debug("s5cmd path: " + self.logic.gets5cmdPath())
-    else:
-      print("Logic says s5cmd is here: "+self.logic.gets5cmdPath())
-    self.IDCClient.s5cmdPath = self.logic.gets5cmdPath()
-    ### ^^^ end TODO
-    
     self.showStatus("Getting Available Collections")
     try:
       responseString = self.IDCClient.get_collection_values()
@@ -1254,6 +1256,7 @@ class IDCBrowserLogic(ScriptedLoadableModuleLogic):
 
   def __init__(self):
     self.setups5cmd()
+    self.setupIDCindex()
     pass
 
   def hasImageData(self, volumeNode):
@@ -1338,141 +1341,190 @@ class IDCBrowserLogic(ScriptedLoadableModuleLogic):
   # https://github.com/Slicer/Slicer/blob/main/Modules/Scripted/ScreenCapture/ScreenCapture.py#L873
 
   def setups5cmd(self):
-      print("setups5cmd")
-      self.finds5cmd()
-      if not self.iss5cmdPathValid():
-          # s5cmd not found, offer downloading it
-          if slicer.util.confirmOkCancelDisplay(
-              's5cmd download tool is not detected on your system. '
-              'Download s5cmd?',
-                  windowTitle='Download confirmation'):
-              if not self.s5cmdDownload():
-                  slicer.util.errorDisplay("s5cmd download failed")
-      if not self.iss5cmdPathValid():
-          return False
-      return True
-
-  def iss5cmdPathValid(self):
-      s5cmdPath = self.gets5cmdPath()
-      return os.path.isfile(s5cmdPath)
+    print("setups5cmd")
+    self.finds5cmd()
+    if not self.iss5cmdPathValid():
+        # s5cmd not found, offer downloading it
+        if slicer.util.confirmOkCancelDisplay(
+            's5cmd download tool is not detected on your system. '
+            'Download s5cmd?',
+                windowTitle='Download confirmation'):
+            if not self.s5cmdDownload():
+                slicer.util.errorDisplay("s5cmd download failed")
+    if not self.iss5cmdPathValid():
+        return False
+    return True
   
-  def getDownloadeds5cmdDirectory(self):
-      return os.path.dirname(slicer.app.slicerUserSettingsFilePath) + '/s5cmd'
-
-  def gets5cmdExecutableFilename(self):
-      if os.name == 'nt':
-          return 's5cmd.exe'
-      elif os.name == 'posix':
-          return 's5cmd'
-      else:
-          return None
-
-  def finds5cmd(self):
-      # Try to find the executable at specific paths
-      commons5cmdPaths = [
-          #'/usr/local/bin/s5cmd',
-          '/usr/bin/s5cmd'
-      ]
-      for s5cmdPath in commons5cmdPaths:
-          if os.path.isfile(s5cmdPath):
-              # found one
-              self.sets5cmdPath(s5cmdPath)
-              return True
-      # Search for the executable in directories
-      commons5cmdDirs = [
-          self.getDownloadeds5cmdDirectory()
-      ]
-      for s5cmdDir in commons5cmdDirs:
-          if self.finds5cmdInDirectory(s5cmdDir):
-              # found it
-              return True
-      # Not found
-      return False
+  def getIDCIndexDirectory(self):
+    return os.path.join(os.path.dirname(slicer.app.slicerUserSettingsFilePath),'SlicerIDCBrowser')
   
-  def finds5cmdInDirectory(self, s5cmdDir):
-      s5cmdExecutableFilename = self.gets5cmdExecutableFilename()
-      for dirpath, dirnames, files in os.walk(s5cmdDir):
-          for name in files:
-              if name == s5cmdExecutableFilename:
-                  s5cmdExecutablePath = (dirpath + '/' + name).replace('\\', '/')
-                  self.sets5cmdPath(s5cmdExecutablePath)
-                  return True
-      return False
+  def getIDCIndexPath(self):
+    return os.path.join(self.getIDCIndexDirectory(),'idc_index.csv')
   
-  def unzips5cmd(self, filePath, s5cmdTargetDirectory):
-      if not os.path.exists(filePath) or os.stat(filePath).st_size == 0:
-          logging.info('s5cmd package is not found at ' + filePath)
-          return False
+  def findIDCIndex(self):
+    return os.path.isfile(self.getIDCIndexPath())  
 
-      logging.info('Unzipping s5cmd package ' + filePath)
-      qt.QDir().mkpath(s5cmdTargetDirectory)
-      slicer.app.applicationLogic().Unzip(filePath, s5cmdTargetDirectory)
-      success = self.finds5cmdInDirectory(s5cmdTargetDirectory)
-      return success
-
-  def s5cmdDownload(self):
-      s5cmdTargetDirectory = self.getDownloadeds5cmdDirectory()
-      # The number in the filePath can be incremented each time a significantly different s5cmd version
-      # is to be introduced (it prevents reusing a previously downloaded package).
-      filePath = slicer.app.temporaryPath + '/s5cmd-package-slicer-01.zip'
-      success = self.unzips5cmd(filePath, s5cmdTargetDirectory)
-      if success:
-          # there was a valid downloaded package already
-          return True
-
-      # List of mirror sites to attempt download s5cmd pre-built binaries from
-      urls = []
-      qs = qt.QSysInfo()
-      productType = qs.productType()
-      # TODO: need more granular OS version detection
-      s5cmd_version = "2.2.2"
-      if productType == 'windows':
-          urls.append(f'https://github.com/peak/s5cmd/releases/download/v{s5cmd_version}/s5cmd_{s5cmd_version}_Windows-64bit.zip')
-      elif productType == 'osx':
-          urls.append(f'https://github.com/peak/s5cmd/releases/download/v{s5cmd_version}/s5cmd_{s5cmd_version}_macOS-64bit.tar.gz')
-      else:
-          # wild guess!          
-          urls.append(f'https://github.com/peak/s5cmd/releases/download/v{s5cmd_version}/s5cmd_{s5cmd_version}_Linux-64bit.tar.gz')
-      pass
-
-      success = False
-      qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
-
-      for url in urls:
+  def setupIDCindex(self):
+    print("findIDCindex")
+    idcIndexDirectory = self.getIDCIndexDirectory()
+    idcIndex = os.path.join(idcIndexDirectory,'idc_index.csv')
+    if not self.findIDCIndex():
+       # IDC index not found, offer downloading it
+        if slicer.util.confirmOkCancelDisplay(
+          'IDC index used is not found. '
+          'Download IDC index?',
+              windowTitle='Download confirmation'):
+          
+          # TODO: detect updates (by checking hashsum, or using tagged releases)
+          idcIndexURL = "https://github.com/ImagingDataCommons/SlicerIDCBrowser/releases/download/latest/idc_index.csv.zip"
 
           success = True
           try:
-              logging.info('Requesting download s5cmd from %s...' % url)
-              import urllib.request, urllib.error, urllib.parse
-              req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-              data = urllib.request.urlopen(req).read()
-              with open(filePath, "wb") as f:
-                  f.write(data)
-
-              success = self.unzips5cmd(filePath, s5cmdTargetDirectory)
+            logging.info('Requesting download IDC index from %s...' % idcIndexURL)
+            import urllib.request, urllib.error, urllib.parse
+            req = urllib.request.Request(idcIndexURL, headers={'User-Agent': 'Mozilla/5.0'})
+            data = urllib.request.urlopen(req).read()
+            logging.info("Downloaded IDC index.")
+            qt.QDir().mkpath(idcIndexDirectory)
+            filePath = idcIndex+".zip"
+            with open(filePath, "wb") as f:
+              f.write(data)
+            logging.info('Unzipping IDC index ' + filePath)
+            slicer.app.applicationLogic().Unzip(filePath, idcIndexDirectory)
+            success = self.findIDCIndex()
           except:
-              logging.error('Failed to download s5cmd')
-              success = False
+            logging.error('Failed to download/unzip IDC index')
+            success = False
+          if not success:
+            slicer.util.errorDisplay("IDC index download failed")
+            return False
+        else:
+          return False
+    else:
+      logging.info("Found IDC index at "+self.getIDCIndexPath())
+    return True
 
-          if success:
-              break
+  def iss5cmdPathValid(self):
+    s5cmdPath = self.gets5cmdPath()
+    return os.path.isfile(s5cmdPath)
+  
+  def getDownloadeds5cmdDirectory(self):
+    return os.path.dirname(slicer.app.slicerUserSettingsFilePath) + '/s5cmd'
 
-      qt.QApplication.restoreOverrideCursor()
-      return success
+  def gets5cmdExecutableFilename(self):
+    if os.name == 'nt':
+        return 's5cmd.exe'
+    elif os.name == 'posix':
+        return 's5cmd'
+    else:
+        return None
+
+  def finds5cmd(self):
+    # Try to find the executable at specific paths
+    commons5cmdPaths = [
+        #'/usr/local/bin/s5cmd',
+        '/usr/bin/s5cmd'
+    ]
+    for s5cmdPath in commons5cmdPaths:
+        if os.path.isfile(s5cmdPath):
+            # found one
+            self.sets5cmdPath(s5cmdPath)
+            return True
+    # Search for the executable in directories
+    commons5cmdDirs = [
+        self.getDownloadeds5cmdDirectory()
+    ]
+    for s5cmdDir in commons5cmdDirs:
+        if self.finds5cmdInDirectory(s5cmdDir):
+            # found it
+            return True
+    # Not found
+    return False
+  
+  def finds5cmdInDirectory(self, s5cmdDir):
+    s5cmdExecutableFilename = self.gets5cmdExecutableFilename()
+    for dirpath, dirnames, files in os.walk(s5cmdDir):
+        for name in files:
+            if name == s5cmdExecutableFilename:
+                s5cmdExecutablePath = (dirpath + '/' + name).replace('\\', '/')
+                self.sets5cmdPath(s5cmdExecutablePath)
+                return True
+    return False
+  
+  def unzips5cmd(self, filePath, s5cmdTargetDirectory):
+    if not os.path.exists(filePath) or os.stat(filePath).st_size == 0:
+        logging.info('s5cmd package is not found at ' + filePath)
+        return False
+
+    logging.info('Unzipping s5cmd package ' + filePath)
+    qt.QDir().mkpath(s5cmdTargetDirectory)
+    slicer.app.applicationLogic().Unzip(filePath, s5cmdTargetDirectory)
+    success = self.finds5cmdInDirectory(s5cmdTargetDirectory)
+    return success
+
+  def s5cmdDownload(self):
+    s5cmdTargetDirectory = self.getDownloadeds5cmdDirectory()
+    # The number in the filePath can be incremented each time a significantly different s5cmd version
+    # is to be introduced (it prevents reusing a previously downloaded package).
+    filePath = slicer.app.temporaryPath + '/s5cmd-package-slicer-01.zip'
+    success = self.unzips5cmd(filePath, s5cmdTargetDirectory)
+    if success:
+        # there was a valid downloaded package already
+        return True
+
+    # List of mirror sites to attempt download s5cmd pre-built binaries from
+    urls = []
+    qs = qt.QSysInfo()
+    productType = qs.productType()
+    # TODO: need more granular OS version detection
+    s5cmd_version = "2.2.2"
+    if productType == 'windows':
+        urls.append(f'https://github.com/peak/s5cmd/releases/download/v{s5cmd_version}/s5cmd_{s5cmd_version}_Windows-64bit.zip')
+    elif productType == 'osx':
+        urls.append(f'https://github.com/peak/s5cmd/releases/download/v{s5cmd_version}/s5cmd_{s5cmd_version}_macOS-64bit.tar.gz')
+    else:
+        # wild guess!          
+        urls.append(f'https://github.com/peak/s5cmd/releases/download/v{s5cmd_version}/s5cmd_{s5cmd_version}_Linux-64bit.tar.gz')
+    pass
+
+    success = False
+    qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
+
+    for url in urls:
+
+        success = True
+        try:
+            logging.info('Requesting download s5cmd from %s...' % url)
+            import urllib.request, urllib.error, urllib.parse
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            data = urllib.request.urlopen(req).read()
+            with open(filePath, "wb") as f:
+                f.write(data)
+
+            success = self.unzips5cmd(filePath, s5cmdTargetDirectory)
+        except:
+            logging.error('Failed to download s5cmd')
+            success = False
+
+        if success:
+            break
+
+    qt.QApplication.restoreOverrideCursor()
+    return success
 
   def gets5cmdPath(self):
-      settings = qt.QSettings()
-      if settings.contains('General/s5cmdPath'):
-          return slicer.app.toSlicerHomeAbsolutePath(settings.value('General/s5cmdPath'))
-      return ''
+    settings = qt.QSettings()
+    if settings.contains('General/s5cmdPath'):
+        return slicer.app.toSlicerHomeAbsolutePath(settings.value('General/s5cmdPath'))
+    return ''
 
   def sets5cmdPath(self, s5cmdPath):
-      # don't save it if already saved
-      settings = qt.QSettings()
-      if settings.contains('General/s5cmdPath'):
-          if s5cmdPath == slicer.app.toSlicerHomeAbsolutePath(settings.value('General/s5cmdPath')):
-              return
-      settings.setValue('General/s5cmdPath', slicer.app.toSlicerHomeRelativePath(s5cmdPath))
+    # don't save it if already saved
+    settings = qt.QSettings()
+    if settings.contains('General/s5cmdPath'):
+        if s5cmdPath == slicer.app.toSlicerHomeAbsolutePath(settings.value('General/s5cmdPath')):
+            return
+    settings.setValue('General/s5cmdPath', slicer.app.toSlicerHomeRelativePath(s5cmdPath))
 
 
 
