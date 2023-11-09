@@ -3,8 +3,10 @@ on:
   workflow_dispatch:
   schedule:
     - cron: 0 12 */1 * *
+  push:
+
 jobs:
-  get_list_of_idc_releases:
+  update_idc_index:
     runs-on: ubuntu-latest
 
     steps:

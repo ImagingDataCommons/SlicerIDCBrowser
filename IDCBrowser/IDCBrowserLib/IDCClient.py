@@ -24,7 +24,7 @@ import pandas as pd
 #
 class IDCClient:
 
-    def __init__(self, csv_index_url="https://api.github.com/repos/vkt1414/SlicerIDCBrowser/releases/latest"):
+    def __init__(self, csv_index_url="https://api.github.com/repos/ImagingDataCommons/SlicerIDCBrowser/releases/latest"):
         self.s5cmdPath = None
         # Get the JSON data of the latest release
         data = requests.get(csv_index_url).json()

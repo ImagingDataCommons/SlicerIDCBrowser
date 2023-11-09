@@ -7,7 +7,7 @@ from google.cloud import bigquery
 project_id='idc-external-025'
 client = bigquery.Client(project=project_id)
 
-latest_release_url= 'https://api.github.com/repos/vkt1414/SlicerIDCBrowser/releases/latest'
+latest_release_url= 'https://api.github.com/repos/ImagingDataCommons/SlicerIDCBrowser/releases/latest'
 current_index_version = requests.get(latest_release_url).json()['name'].split('v')[1]
 
 print('idc_version_in_index: '+current_index_version +'\n')
@@ -74,7 +74,7 @@ if current_index_version < latest_idc_release_version:
     'prerelease': False,
     'generate_release_notes': False
   }
-  response = requests.post('https://api.github.com/repos/vkt1414/SlicerIDCBrowser/releases', headers=headers, json=data)
+  response = requests.post('https://api.github.com/repos/ImagingDataCommons/SlicerIDCBrowser/releases', headers=headers, json=data)
 
   # Check if release was created successfully
   if response.status_code == 201:
