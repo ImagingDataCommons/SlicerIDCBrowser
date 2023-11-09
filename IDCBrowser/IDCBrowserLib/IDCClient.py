@@ -15,7 +15,7 @@
 #
 import json, string, os
 import requests, logging
-
+import pandas as pd
 
 # import TCIABrowserLib
 
@@ -23,305 +23,143 @@ import requests, logging
 # Refer https://wiki.cancerimagingarchive.net/display/Public/REST+API+Usage+Guide for complete list of API
 #
 class IDCClient:
-    GET_IMAGE = "getImage"
-    GET_MANUFACTURER_VALUES = "getManufacturerValues"
-    GET_MODALITY_VALUES = "getModalityValues"
-    GET_COLLECTION_VALUES = "getCollectionValues"
-    GET_BODY_PART_VALUES = "getBodyPartValues"
-    GET_PATIENT_STUDY = "getPatientStudy"
-    GET_SERIES = "getSeries"
-    GET_SERIES_SIZE = "getSeriesSize"
-    GET_PATIENT = "getPatient"
 
-    # use Slicer API key by default
-    def __init__(self, baseUrl='https://dev-api.canceridc.dev/v2'): # v2 dev
-    # def __init__(self, baseUrl='https://dev-api.canceridc.dev/v1'): # v1 dev
-    # def __init__(self, baseUrl='http://localhost:8095/v2'):  # v2 local
-        self.baseUrl = baseUrl
+    def __init__(self, csv_url='https://github.com/ImagingDataCommons/SlicerIDCBrowser/releases/download/latest/idc_index.csv.zip'): 
         self.s5cmdPath = None
-
-    def execute_get(self, url, params=None, json=None):
-        logging.debug("GETting %s with params %s", url, params)
-        response = requests.get(url, params=params, json=json)
-        if response.status_code != 200:
-            # Print the error code and message if something went wrong
-            print('Request failed: {}'.format(response.reason))
-
-        return response
-
-    def execute_post(self, url, params=None, json=None):
-        logging.debug("POSTing %s with params %s", url, params)
-        response = requests.post(url, params=params, json=json)
-        if response.status_code != 200:
-            # Print the error code and message if something went wrong
-            print('Request failed: {}'.format(response.reason))
-
-        return response
-
-    def get_modality_values(self, collection=None, bodyPartExamined=None, modality=None, outputFormat="json"):
-        serviceUrl = self.baseUrl + "/" + self.GET_MODALITY_VALUES
-        queryParameters = {"Collection": collection, "BodyPartExamined": bodyPartExamined, "Modality": modality,
-                           "format": outputFormat}
-        resp = self.execute(serviceUrl, queryParameters)
-        return resp
-
-    def get_manufacturer_values(self, collection=None, bodyPartExamined=None, modality=None, outputFormat="json"):
         '''
-        serviceUrl = self.baseUrl + "/" + self.GET_MANUFACTURER_VALUES
-        queryParameters = {"Collection" : collection , "BodyPartExamined" : bodyPartExamined , "Modality" : modality , "format" : outputFormat }
-        resp = self.execute(serviceUrl , queryParameters)
+        # Get the JSON data of the latest release
+        data = requests.get(csv_index_url).json()
+        print('Using Index of IDC Version '+data['name'])
+        # Find the URL of the .csv.zip file
+        csv_url = None
+        for asset in data["assets"]:
+            # Check if the name of the asset ends with .csv
+            if asset["name"].endswith(".csv.zip"):
+                csv_url = asset["browser_download_url"]
+                break
         '''
-        return None
+        # TODO: for now, use fixed path
+        # Read the .csv file into a pandas dataframe
+        self.index = pd.read_csv(csv_url, dtype={14: str, 15: str,16: str})
+        self.index = self.index.astype(str).replace('nan', '')
 
-    def get_collection_values(self, outputFormat="json"):
-        url = '{}/collections'.format(self.baseUrl)
-        resp = self.execute_get(url)
+    def get_collection_values(self, outputFormat="list"):
+        # Use the DataFrame to get unique collection IDs
+        unique_collections = self.index['collection_id'].unique()
+        return unique_collections.tolist()
 
-        idc_collections = []
-
-        for c in resp.json()['collections']:
-            idc_collections.append({"Collection": c["collection_id"]})
-
-        logging.debug("Get collections response: %s", json.dumps(idc_collections))
-        return json.dumps(idc_collections)
-
-    def get_body_part_values(self, collection=None, bodyPartExamined=None, modality=None, outputFormat="csv"):
-        return None
-        serviceUrl = self.baseUrl + "/" + self.GET_BODY_PART_VALUES
-        queryParameters = {"Collection": collection, "BodyPartExamined": bodyPartExamined, "Modality": modality,
-                           "format": outputFormat}
-        resp = self.execute(serviceUrl, queryParameters)
-        return resp
-
-    '''
-    def get_patient_study(self,collection = None , patientId = None , studyInstanceUid = None , outputFormat = "json" ):
-        return None
-        serviceUrl = self.baseUrl + "/" + self.GET_PATIENT_STUDY
-        queryParameters = {"Collection" : collection , "PatientID" : patientId , "StudyInstanceUID" : studyInstanceUid , "format" : outputFormat }
-        resp = self.execute(serviceUrl , queryParameters)
-        return resp
-
-
-    def get_series(self,collection = None , patientId = None , studyInstanceUID = None, modality = None , outputFormat = "json" ):
-        return None
-        serviceUrl = self.baseUrl + "/" + self.GET_SERIES
-        queryParameters = {"Collection" : collection , "PatientID" : patientId ,"StudyInstanceUID": studyInstanceUID, "Modality" : modality , "format" : outputFormat }
-        resp = self.execute(serviceUrl , queryParameters)
-        return resp
-    '''
 
     def get_series_size(self, seriesInstanceUid):
-        return None
-        serviceUrl = self.baseUrl + "/" + self.GET_SERIES_SIZE
-        queryParameters = {"SeriesInstanceUID": seriesInstanceUid}
-        resp = self.execute(serviceUrl, queryParameters)
+        resp = self.index[['SeriesInstanceUID']==seriesInstanceUid]['series_size_MB'].iloc[0]
         return resp
 
     def get_patient(self, collection=None, outputFormat="json"):
-        filters = {
-            "collection_id": [collection],
-        }
-        cohortSpec = {"name": "testcohort",
-                      "description": "Test description",
-                      "filters": filters}
-        params = dict(
-            sql=False,
-            page_size=2000
-        )
+        if collection is not None:
+            print(collection)
+            patient_df = self.index[self.index['collection_id'] == collection].copy()  # Make a copy
 
-        fields = [
-            'Collection_ID',
-            'PatientID',
-            'counts',
-            'sizes'
-            ]
+        else:
+            patient_df = self.index.copy()  # Make a copy
+            #patient_df = self.index[self.index['collection_id'] == 'nsclc_radiomics'].copy() 
+        #patient_df['patient_size_MB'] = patient_df.groupby('PatientID')['series_size_MB'].transform('sum')
+        #patient_df['patient_study_count'] = patient_df.groupby('PatientID')['StudyInstanceUID'].transform('count')
+        #patient_df['patient_series_count'] = patient_df.groupby('PatientID')['SeriesInstanceUID'].transform('count')
+        #patient_df['patient_instance_count'] = patient_df.groupby('PatientID')['instanceCount'].transform('count')
 
-        queryPreviewBody = {"cohort_def": cohortSpec,
-                            "fields": fields}
+        patient_df=patient_df.rename(columns={'collection_id':'Collection'})
+        patient_df = patient_df[['PatientID', 'PatientSex', 'PatientAge']]
+        patient_df = patient_df.groupby('PatientID').agg({
+            'PatientSex': lambda x: ','.join(x[x != ''].unique()),
+            'PatientAge': lambda x: ','.join(x[x != ''].unique())
+        }).reset_index()
 
-        url = '{}/cohorts/query/preview'.format(self.baseUrl)
-        resp = self.execute_post(url, params=params, json=queryPreviewBody)
+        patient_df = patient_df.drop_duplicates().sort_values(by='PatientID')
+        # Convert DataFrame to a list of dictionaries for the API-like response
+        idc_response = patient_df.to_dict(orient="records")
 
-        # print(resp.json())
+        logging.debug("Get patient response: %s", str(idc_response))
 
-        idc_json = resp.json()['query_results']['json']
+        return idc_response
 
-        idc_response = []
-        for idc_item in idc_json:
-            # print(idc_item)
-            idc_item = {"PatientID": idc_item['PatientID'],
-                        'PatientName': '',
-                        'PatientSex': '',
-                        'Collection': collection,
-                        'PatientAge': '',
-                        'patient_size_MB': idc_item['patient_size_MB'],
-                        'study_count': idc_item['study_count'],
-                        'series count': idc_item['series_count'],
-                        'instance_count': idc_item['instance_count']
-                        }
-            idc_response.append(idc_item)
-
-        logging.debug("Get patient response: %s", json.dumps(idc_response, indent=2))
-
-        return json.dumps(idc_response)
-
+    
     def get_patient_study(self, collection=None, patientId=None, studyInstanceUid=None, outputFormat="json"):
+        if collection is not None:
+            patient_study_df = self.index[self.index['collection_id'] == collection].copy()  # Make a copy
+        elif patientId is not None:
+            patient_study_df = self.index[self.index['PatientID'] == patientId].copy()  # Make a copy
+        elif studyInstanceUid is not None:
+            patient_study_df = self.index[self.index['StudyInstanceUID'] == studyInstanceUid].copy()  # Make a copy
+        else:
+            patient_study_df = self.index.copy()  # Make a copy
 
-        filters = {
-            "PatientID": [patientId],
-        }
-        cohortSpec = {"name": "testcohort",
-                      "description": "Test description",
-                      "filters": filters}
-        params = dict(
-            sql=False,
-            page_size=2000
-        )
+        patient_study_df['patient_study_size_MB'] = patient_study_df.groupby(['PatientID', 'StudyInstanceUID'])['series_size_MB'].transform('sum')
+        patient_study_df['patient_study_series_count'] = patient_study_df.groupby(['PatientID', 'StudyInstanceUID'])['SeriesInstanceUID'].transform('count')
+        patient_study_df['patient_study_instance_count'] = patient_study_df.groupby(['PatientID', 'StudyInstanceUID'])['instanceCount'].transform('count')
 
-        fields = [
-            'Collection_ID',
-            'PatientID',
-            'StudyInstanceUID',
-            'StudyDate',
-            'StudyDescription',
-            'counts',
-            'sizes'
-            ]
+        patient_study_df = patient_study_df.rename(columns={'collection_id': 'Collection', 'patient_study_series_count': 'SeriesCount'})
 
-        queryPreviewBody = {"cohort_def": cohortSpec,
-                            "fields": fields}
+        #patient_study_df = patient_study_df[['PatientID', 'PatientSex', 'Collection', 'PatientAge', 'StudyInstanceUID', 'StudyDate', 'StudyDescription', 'patient_study_size_MB', 'SeriesCount', 'patient_study_instance_count']]
+        patient_study_df = patient_study_df[['StudyInstanceUID', 'StudyDate', 'StudyDescription', 'SeriesCount']]
+        # Group by 'StudyInstanceUID' to make sure there is only one studyid in the GUI
+        patient_study_df = patient_study_df.groupby('StudyInstanceUID').agg({
+            'StudyDate': lambda x: ','.join(x[x != ''].unique()),
+            'StudyDescription': lambda x: ','.join(x[x != ''].unique()),
+            'SeriesCount': lambda x: int(x[x != ''].iloc[0]) if len(x[x != '']) > 0 else 0
+        }).reset_index()
 
-        # url = '{}/cohorts/manifest/preview'.format(self.baseUrl)
-        url = '{}/cohorts/query/preview'.format(self.baseUrl)
-        resp = self.execute_post(url, params=params, json=queryPreviewBody)
+        patient_study_df = patient_study_df.drop_duplicates().sort_values(by=['StudyDate','StudyDescription','SeriesCount'])
 
-        idc_json = resp.json()['query_results']['json']
 
-        idc_response = []
-        for idc_item in idc_json:
-            idc_item = {'Collection': idc_item['collection_id'], \
-                        'Patient_ID': patientId, \
-                        'PatientName': '', \
-                        'PatientSex': '', \
-                        'StudyInstanceUID': idc_item['StudyInstanceUID'], \
-                        'StudyDate': idc_item['StudyDate'], \
-                        'StudyDescription': idc_item['StudyDescription'], \
-                        'PatientAge': '', \
-                        'study_size_MB': idc_item['study_size_MB'],
-                        'series count': idc_item['series_count'], \
-                        'instance_count': idc_item['instance_count']
-                        }
-            idc_response.append(idc_item)
 
-        logging.debug("Get study response: %s", json.dumps(idc_response, indent=2))
+        # Convert DataFrame to a list of dictionaries for the API-like response
+        idc_response = patient_study_df.to_dict(orient="records")
 
-        return json.dumps(idc_response)
+        logging.debug("Get patient study response: %s", str(idc_response))
+
+        return idc_response
+
 
     def get_series(self, collection=None, patientId=None, studyInstanceUID=None, modality=None, outputFormat="json"):
-        filters = {
-            "StudyInstanceUID": [studyInstanceUID],
-        }
-        cohortSpec = {"name": "testcohort",
-                      "description": "Test description",
-                      "filters": filters}
-        params = dict(
-            sql=False,
-             page_size=2000
-        )
+        if collection is not None:
+            patient_series_df = self.index[self.index['collection_id'] == collection].copy()  # Make a copy
+        elif patientId is not None:
+            patient_series_df = self.index[self.index['PatientID'] == patientId].copy()  # Make a copy
+        elif studyInstanceUID is not None:
+            patient_series_df = self.index[self.index['StudyInstanceUID'] == studyInstanceUID].copy()  # Make a copy
+        elif modality is not None:
+            patient_series_df = self.index[self.index['Modality'] == modality].copy()  # Make a copy
+        else:
+            patient_series_df = self.index.copy()  # Make a copy
 
-        fields = [
-            "SeriesInstanceUID",
-            "Modality",
-            "SeriesDescription",
-            "SeriesNumber",
-            "collection_id",
-            "Manufacturer",
-            "ManufacturerModelName",
-            "sizes",
-            "counts"
-        ]
+        patient_series_df = patient_series_df.rename(columns={'collection_id': 'Collection', 'instanceCount': 'instance_count'})
+        patient_series_df['ImageCount']=1
+        patient_series_df = patient_series_df[['StudyInstanceUID', 'SeriesInstanceUID', 'Modality', 'SeriesDate', 'Collection', 'BodyPartExamined', 'SeriesDescription', 'Manufacturer', 'ManufacturerModelName', 'series_size_MB','SeriesNumber', 'instance_count', 'ImageCount']]
 
-        queryPreviewBody = {"cohort_def": cohortSpec,
-                            "fields": fields}
+        patient_series_df = patient_series_df.drop_duplicates().sort_values(by=['Modality','SeriesDate','SeriesDescription','BodyPartExamined', 'SeriesNumber'])
+        # Convert DataFrame to a list of dictionaries for the API-like response
+        idc_response = patient_series_df.to_dict(orient="records")
 
-        # url = '{}/cohorts/manifest/preview'.format(self.baseUrl)
-        url = '{}/cohorts/query/preview'.format(self.baseUrl)
-        resp = self.execute_post(url, params=params, json=queryPreviewBody)
+        logging.debug("Get series response: %s", str(idc_response))
 
-        idc_json = resp.json()['query_results']['json']
+        return idc_response
 
-        idc_response = []
-        for idc_item in idc_json:
-            idc_item = {'SeriesInstanceUID': idc_item['SeriesInstanceUID'], \
-                        'StudyInstanceUID': studyInstanceUID, \
-                        'Modality': idc_item['Modality'], \
-                        'SeriesDate': '', \
-                        'SeriesDescription': idc_item['SeriesDescription'], \
-                        'SeriesNumber': idc_item['SeriesNumber'], \
-                        'Collection': idc_item['collection_id'], # v1 \
-                        # 'Collection': idc_item['collection_id'], #  v2 \
-                        'Manufacturer': idc_item['Manufacturer'], \
-                        'ManufacturerModelName': idc_item['ManufacturerModelName'], \
-                        'SoftwareVersions': '', \
-                        'Visibility': '1', \
-                        'ImageCount': '1', \
-                        'series_size_MB': idc_item['series_size_MB'], \
-                        'instance_count': idc_item['instance_count']
-                        }
-            idc_response.append(idc_item)
-        logging.debug("Get series response: %s", json.dumps(idc_response, indent=2))
-        return json.dumps(idc_response)
+
 
     def get_image(self, seriesInstanceUid, downloadDir, download=True):
-        filters = {
-            "SeriesInstanceUID": [seriesInstanceUid],
-        }
-        cohortSpec = {"name": "testcohort",
-                      "description": "Test description",
-                      "filters": filters}
-        # params = dict(
-        #     sql=False,
-        #     Collection_ID=False,
-        #     Patient_ID=False, # v1
-        #     # PatientID=False, # v2
-        #     StudyInstanceUID=False,
-        #     SeriesInstanceUID=True,
-        #     GCS_URL=True,
-        #     page_size=1
-        # )
-        params = dict(
-            sql=False,
-            crdc_series_uuid=True,
-            gcs_bucket=True,
-            aws_bucket=True,
-            page_size=1
-        )
-        url = '{}/cohorts/manifest/preview'.format(self.baseUrl)
-        resp = self.execute_post(url, params=params, json=cohortSpec)
-
-        # gcs_url = resp.json()['manifest']['json_manifest'][0]['GCS_URL']
-        #
-        # series_url = 's3' + gcs_url[2:gcs_url.rfind('/') + 1] + '*'
-
-        row = resp.json()['manifest']['json_manifest'][0]
-        series_url = f"s3://{row['aws_bucket']}/{row['crdc_series_uuid']}/*"
-
-        # if not self.iss5cmdPathValid():
-        #    self.setups5cmd()
-
+        series_url = self.index[self.index['SeriesInstanceUID']==seriesInstanceUid]['series_aws_location'].iloc[0]
+        #series_url = f"s3://{row['aws_bucket']}/{row['crdc_series_uuid']}/*"
+        print(series_url)
         import subprocess
 
         cmd = [self.s5cmdPath, '--no-sign-request', '--endpoint-url', 'https://s3.amazonaws.com', 'cp',
-               series_url, downloadDir]
-        logging.debug(" ".join(cmd))
+                series_url, downloadDir]
+        #logging.debug(" ".join(cmd))
 
         if download:
             ret = subprocess.run(cmd)
 
         return 0
-    
 
-    
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     client = IDCClient()
