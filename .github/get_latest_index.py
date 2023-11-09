@@ -7,11 +7,9 @@ from google.cloud import bigquery
 project_id='idc-external-025'
 client = bigquery.Client(project=project_id)
 
-# Get current index version
-file_path='IDCBrowser/Resources/csv_index.sql'
-with open(file_path, 'r') as file:
-    content = file.read()
-current_index_version = re.search(r'idc_v(\d+)', content).group(1)
+latest_release_url= 'https://api.github.com/repos/vkt1414/SlicerIDCBrowser/releases/latest'
+current_index_version = requests.get(latest_release_url).json()['name'].split('v')[1]
+
 print('idc_version_in_index: '+current_index_version +'\n')
 
 # Get latest IDC release version
@@ -23,12 +21,36 @@ print('latest_idc_release_version: '+latest_idc_release_version +'\n')
 # Check if current index version is outdated
 if current_index_version < latest_idc_release_version:
   # Update SQL query
-  modified_sql_query = re.sub(r'idc_v(\d+)', 'idc_v'+latest_idc_release_version, content)
+  modified_sql_query =f"""
+  SELECT
+  string_agg(distinct PatientID) PatientID,
+  string_agg(distinct PatientAge) PatientAge,
+  string_agg(distinct PatientSex) PatientSex,
+  string_agg(distinct collection_id) collection_id,
+  string_agg(distinct source_DOI)  as DOI,
+  string_agg(distinct StudyInstanceUID) StudyInstanceUID,
+  string_agg(distinct cast(StudyDate as STRING)) StudyDate,
+  string_agg(distinct StudyDescription) StudyDescription,
+  string_agg(distinct Modality) Modality,
+  string_agg(distinct Manufacturer) Manufacturer,
+  string_agg(distinct ManufacturerModelName) ManufacturerModelName,
+  SeriesInstanceUID,
+  string_agg(distinct cast(SeriesDate as STRING)) SeriesDate,
+  string_agg(distinct SeriesDescription)  SeriesDescription,
+  string_agg(distinct BodyPartExamined) BodyPartExamined,
+  string_agg(distinct SeriesNumber) SeriesNumber,
+  ANY_VALUE(CONCAT("s3://", SPLIT(aws_url,"/")[SAFE_OFFSET(2)], "/", crdc_series_uuid, "/*")) as series_aws_location,
+  COUNT(SOPInstanceUID) as instanceCount,
+  ROUND(SUM(instance_size)/(1000*1000), 2) as series_size_MB,
+  FROM
+    `bigquery-public-data.idc_v{latest_idc_release_version}.dicom_all`
+
+  GROUP BY
+  SeriesInstanceUID
+
+  """
   print('modified_sql_query:\n'+modified_sql_query)
   
-  # Overwrite the existing SQL file with the modified SQL query
-  with open(file_path, 'w') as file:
-    file.write(modified_sql_query)
   
   # Execute SQL query and save result as CSV
   df = client.query(modified_sql_query).to_dataframe()
@@ -47,7 +69,7 @@ if current_index_version < latest_idc_release_version:
     'tag_name': 'v' + latest_idc_release_version,
     'target_commitish': 'main',
     'name': 'v' + latest_idc_release_version,
-    'body': 'Found newer IDC release with version '+latest_idc_release_version+ '. So updating the index also from idc_v'+current_index_version+' to idc_v'+latest_idc_release_version,
+    'body': 'Found newer IDC release with version '+latest_idc_release_version+ '. So updating the index also from idc_v'+current_index_version+' to idc_v'+latest_idc_release_version+ '\n The sql query used for generating the new csv index is \n'+modified_sql_query,
     'draft': False,
     'prerelease': False,
     'generate_release_notes': False
@@ -72,11 +94,4 @@ if current_index_version < latest_idc_release_version:
   else:
     print('Error creating release: ' + response.text)
 
-  # Update csv_index_path in IDCClient.py
-  idcclient_path = 'IDCBrowser/IDCBrowserLib/IDCClient.py'
-  with open(idcclient_path, 'r') as file:
-    idcclient_content = file.read()
-  new_csv_index_path = 'https://github.com/vkt1414/SlicerIDCBrowser/releases/download/v' + latest_idc_release_version + '/' + csv_file_name
-  updated_idcclient_content = re.sub(r"https://github.com/vkt1414/SlicerIDCBrowser/releases/download/v\d+\.\d+\.\d+/index_v\d+\.csv", new_csv_index_path, idcclient_content)
-  with open(idcclient_path, 'w') as file:
-    file.write(updated_idcclient_content)
+

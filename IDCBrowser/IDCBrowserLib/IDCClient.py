@@ -23,21 +23,27 @@ import pandas as pd
 # Refer https://wiki.cancerimagingarchive.net/display/Public/REST+API+Usage+Guide for complete list of API
 #
 class IDCClient:
-    GET_IMAGE = "getImage"
-    GET_MANUFACTURER_VALUES = "getManufacturerValues"
-    GET_MODALITY_VALUES = "getModalityValues"
-    GET_COLLECTION_VALUES = "getCollectionValues"
-    GET_BODY_PART_VALUES = "getBodyPartValues"
-    GET_PATIENT_STUDY = "getPatientStudy"
-    GET_SERIES = "getSeries"
-    GET_SERIES_SIZE = "getSeriesSize"
-    GET_PATIENT = "getPatient"
 
-    # use Slicer API key by default
-    def __init__(self, csv_index_path='https://github.com/vkt1414/SlicerIDCBrowser/releases/download/v0.0.2/index_v2.csv'): 
+    def __init__(self, csv_index_url="https://api.github.com/repos/vkt1414/SlicerIDCBrowser/releases/latest"):
         self.s5cmdPath = None
-        self.index = pd.read_csv(csv_index_path,dtype={14: str, 15: str})
-        self.index = self.index.astype(str).replace('nan', '')
+        # Get the JSON data of the latest release
+        data = requests.get(csv_index_url).json()
+        print('Using Index of IDC Version '+data['name'])
+        # Find the URL of the .csv file
+        csv_url = None
+        for asset in data["assets"]:
+            # Check if the name of the asset ends with .csv
+            if asset["name"].endswith(".csv"):
+                csv_url = asset["browser_download_url"]
+                break
+        # Check if the URL is found
+        if csv_url is not None:
+            # Read the .csv file into a pandas dataframe
+            self.index = pd.read_csv(csv_url, dtype={14: str, 15: str,16: str})
+            self.index = self.index.astype(str).replace('nan', '')
+        else:
+            # Raise an exception if the .csv file is not found
+            raise FileNotFoundError("The .csv file is not found in the latest release")
 
 
     def get_collection_values(self, outputFormat="list"):
