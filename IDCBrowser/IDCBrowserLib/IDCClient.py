@@ -131,9 +131,8 @@ class IDCClient:
         else:
             patient_series_df = self.index.copy()  # Make a copy
 
-        patient_series_df = patient_series_df.rename(columns={'collection_id': 'Collection', 'instanceCount': 'instance_count'})
-        patient_series_df['ImageCount']=1
-        patient_series_df = patient_series_df[['StudyInstanceUID', 'SeriesInstanceUID', 'Modality', 'SeriesDate', 'Collection', 'BodyPartExamined', 'SeriesDescription', 'Manufacturer', 'ManufacturerModelName', 'series_size_MB','SeriesNumber', 'instance_count', 'ImageCount']]
+        patient_series_df = patient_series_df.rename(columns={'collection_id': 'Collection', 'instanceCount': 'ImageCount'})
+        patient_series_df = patient_series_df[['StudyInstanceUID', 'SeriesInstanceUID', 'Modality', 'SeriesDate', 'Collection', 'BodyPartExamined', 'SeriesDescription', 'Manufacturer', 'ManufacturerModelName', 'series_size_MB','SeriesNumber', 'ImageCount']]
 
         patient_series_df = patient_series_df.drop_duplicates().sort_values(by=['Modality','SeriesDate','SeriesDescription','BodyPartExamined', 'SeriesNumber'])
         # Convert DataFrame to a list of dictionaries for the API-like response

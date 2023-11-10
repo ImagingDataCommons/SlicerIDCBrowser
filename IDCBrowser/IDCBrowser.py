@@ -240,7 +240,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     #
     # Collection Selector ComboBox
     #
-    self.collectionSelectorLabel = qt.QLabel('Current Collection:')
+    self.collectionSelectorLabel = qt.QLabel('Select collection:')
     collectionsFormLayout.addWidget(self.collectionSelectorLabel)
     # Selector ComboBox
     self.collectionSelector = qt.QComboBox()
@@ -259,7 +259,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.useCacheCeckBox.setCheckState(False)
     self.useCacheCeckBox.setTristate(False)
     collectionsFormLayout.addStretch(4)
-    logoLabelText = "IDC"
+    logoLabelText = "IDC release v16"
     self.logoLabel = qt.QLabel(logoLabelText)
     collectionsFormLayout.addWidget(self.logoLabel)
 
@@ -359,7 +359,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.seriesTableHeaderLabels = ['Series Instance UID', 'Status', 'Modality',
                     'Series Date', 'Series Description', 'Body Part Examined',
                     'Series Number','Manufacturer',
-                    'Manufacturer Model Name','Image Count']
+                    'Manufacturer Model Name','Instance Count']
     self.seriesTableWidget.setHorizontalHeaderLabels(self.seriesTableHeaderLabels)
     self.seriesTableWidget.resizeColumnsToContents()
     seriesVBoxLayout2.addWidget(self.seriesTableWidget)
