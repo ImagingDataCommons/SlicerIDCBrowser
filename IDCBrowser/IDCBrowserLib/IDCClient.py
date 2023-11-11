@@ -42,6 +42,12 @@ class IDCClient:
         # Read the .csv file into a pandas dataframe
         self.index = pd.read_csv(csv_url, dtype={14: str, 15: str,16: str})
         self.index = self.index.astype(str).replace('nan', '')
+        self.index['series_size_MB'] = self.index['series_size_MB'].astype(float)
+
+        self.collection_summary = self.index.groupby('collection_id').agg({
+            'Modality': pd.Series.unique,
+            'series_size_MB': 'sum'
+        })
 
     def get_collection_values(self, outputFormat="list"):
         # Use the DataFrame to get unique collection IDs
@@ -118,7 +124,6 @@ class IDCClient:
 
         return idc_response
 
-
     def get_series(self, collection=None, patientId=None, studyInstanceUID=None, modality=None, outputFormat="json"):
         if collection is not None:
             patient_series_df = self.index[self.index['collection_id'] == collection].copy()  # Make a copy
@@ -131,8 +136,8 @@ class IDCClient:
         else:
             patient_series_df = self.index.copy()  # Make a copy
 
-        patient_series_df = patient_series_df.rename(columns={'collection_id': 'Collection', 'instanceCount': 'ImageCount'})
-        patient_series_df = patient_series_df[['StudyInstanceUID', 'SeriesInstanceUID', 'Modality', 'SeriesDate', 'Collection', 'BodyPartExamined', 'SeriesDescription', 'Manufacturer', 'ManufacturerModelName', 'series_size_MB','SeriesNumber', 'ImageCount']]
+        patient_series_df = patient_series_df.rename(columns={'collection_id': 'Collection', 'instanceCount': 'ImageCount', 'series_size_MB':'ImageSize'})
+        patient_series_df = patient_series_df[['StudyInstanceUID', 'SeriesInstanceUID', 'Modality', 'SeriesDate', 'Collection', 'BodyPartExamined', 'SeriesDescription', 'Manufacturer', 'ManufacturerModelName', 'ImageSize','SeriesNumber', 'ImageCount']]
 
         patient_series_df = patient_series_df.drop_duplicates().sort_values(by=['Modality','SeriesDate','SeriesDescription','BodyPartExamined', 'SeriesNumber'])
         # Convert DataFrame to a list of dictionaries for the API-like response

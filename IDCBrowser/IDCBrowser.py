@@ -51,7 +51,7 @@ class IDCBrowser(ScriptedLoadableModule):
 
     ScriptedLoadableModule.__init__(self, parent)
 
-    parent.title = "IDC Browser"
+    parent.title = "SlicerIDCBrowser | NCI Imaging Data Commons data release v16"
     parent.categories = ["Informatics"]
     parent.dependencies = []
     parent.contributors = ["Andrey Fedorov (SPL, BWH)"]
@@ -102,7 +102,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.IDCClient.s5cmdPath = self.logic.gets5cmdPath()
 
     self.browserWidget = qt.QWidget()
-    self.browserWidget.setWindowTitle('IDC Browser')
+    self.browserWidget.setWindowTitle('SlicerIDCBrowser | NCI Imaging Data Commons data release v16')
 
     self.initialConnection = False
     self.seriesTableRowCount = 0
@@ -206,7 +206,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     # Browser Area
     #
     browserCollapsibleButton = ctk.ctkCollapsibleButton()
-    browserCollapsibleButton.text = "IDC Browser"
+    browserCollapsibleButton.text = "SlicerIDCBrowser | NCI Imaging Data Commons data release v16"
     self.layout.addWidget(browserCollapsibleButton)
     browserLayout = qt.QVBoxLayout(browserCollapsibleButton)
 
@@ -596,7 +596,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
       self.clearStatus()
       message = "getCollectionValues: Error in getting response from IDC server.\nHTTP Error:\n" + str(error)
       qt.QMessageBox.critical(slicer.util.mainWindow(),
-                  'IDC Browser', message, qt.QMessageBox.Ok)
+                  'SlicerIDCBrowser', message, qt.QMessageBox.Ok)
     self.showBrowserButton.enabled = True
     self.showBrowser()
 
@@ -621,6 +621,15 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.selectedCollection = item
     cacheFile = self.cachePath + self.selectedCollection + '.json'
     self.progressMessage = "Getting available patients for collection: " + self.selectedCollection
+
+    # make collection summary
+    collection_summary = self.IDCClient.collection_summary.loc[self.selectedCollection]
+    if float(collection_summary.series_size_MB) > 1000:
+      summary_text = "Modalities: "+str(collection_summary.Modality).replace('\'','')+" Total size: "+str(round(float(collection_summary.series_size_MB)/1000,2))+" GB"
+    else:
+      summary_text = "Modalities: "+str(collection_summary.Modality).replace('\'','')+" Total size: "+str(round(float(collection_summary.series_size_MB),2))+" MB"
+    self.logoLabel.setText(summary_text)
+
     self.showStatus(self.progressMessage)
     if self.selectedCollection[0:4] != 'TCGA':
       self.clinicalDataRetrieveAction.enabled = False
@@ -663,7 +672,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
         self.clearStatus()
         message = "collectionSelected: Error in getting response from IDC server.\nHTTP Error:\n" + str(error)
         qt.QMessageBox.critical(slicer.util.mainWindow(),
-                    'IDC Browser', message, qt.QMessageBox.Ok)
+                    'SlicerIDCBrowser', message, qt.QMessageBox.Ok)
 
   def patientsTableSelectionChanged(self):
     self.clearStudiesTableWidget()
@@ -722,7 +731,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
         self.clearStatus()
         message = "patientSelected: Error in getting response from IDC server.\nHTTP Error:\n" + str(error)
         qt.QMessageBox.critical(slicer.util.mainWindow(),
-                    'IDC Browser', message, qt.QMessageBox.Ok)
+                    'SlicerIDCBrowser', message, qt.QMessageBox.Ok)
 
   def studiesTableSelectionChanged(self):
     self.clearSeriesTableWidget()
@@ -782,7 +791,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
         self.clearStatus()
         message = "studySelected: Error in getting response from IDC server.\nHTTP Error:\n" + str(error)
         qt.QMessageBox.critical(slicer.util.mainWindow(),
-                    'IDC Browser', message, qt.QMessageBox.Ok)
+                    'SlicerIDCBrowser', message, qt.QMessageBox.Ok)
 
     self.onSeriesSelectAllButton()
     # self.loadButton.enabled = True
@@ -790,15 +799,22 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
   def seriesSelected(self):
     self.imagesToDownloadCount = 0
+    self.imagesToDownloadSize = 0
     self.loadButton.enabled = False
     self.indexButton.enabled = False
     for n in range(len(self.seriesInstanceUIDs)):
       if self.seriesInstanceUIDs[n].isSelected():
         self.imagesToDownloadCount += int(self.imageCounts[n].text())
+        self.imagesToDownloadSize += float(self.imageSizes[n])
         self.loadButton.enabled = True
         self.indexButton.enabled = True
-    self.imagesCountLabel.text = 'No. of images to download: ' + '<span style=" font-size:8pt; font-weight:600; color:#aa0000;">' + str(
-      self.imagesToDownloadCount) + '</span>' + ' '
+    if self.imagesToDownloadSize > 1000:
+      self.imagesToDownloadSize = self.imagesToDownloadSize / 1000
+      unit = 'GB'
+    else:
+      unit = 'MB'
+    self.imagesCountLabel.text = 'Total size to download: ' + '<span style=" font-weight:600; color:#aa0000;">' + str(
+      round(self.imagesToDownloadSize,2)) + unit+'</span>' + ' '
 
   def onIndexButton(self):
     self.loadToScene = False
@@ -956,7 +972,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
         self.clearStatus()
         message = "downloadSelectedSeries: Error in getting response from IDC server.\nHTTP Error:\n" + str(error)
         qt.QMessageBox.critical(slicer.util.mainWindow(),
-                    'IDC Browser', message, qt.QMessageBox.Ok)
+                    'SlicerIDCBrowser - data release v16', message, qt.QMessageBox.Ok)
     self.cancelDownloadButton.enabled = False
     self.collectionSelector.enabled = True
     self.patientsTableWidget.enabled = True
@@ -1187,6 +1203,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
         if key == 'ImageCount':
           imageCount = qt.QTableWidgetItem(str(series['ImageCount']))
           self.imageCounts.append(imageCount)
+          self.imageSizes.append(float(series['ImageSize']))
           table.setItem(n, 9, imageCount)
       n += 1
     self.seriesTableWidget.resizeColumnsToContents()
@@ -1237,6 +1254,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.manufacturerModelNames = []
     self.softwareVersionsCollection = []
     self.imageCounts = []
+    self.imageSizes = []
     table.clear()
     table.setHorizontalHeaderLabels(self.seriesTableHeaderLabels)
 
