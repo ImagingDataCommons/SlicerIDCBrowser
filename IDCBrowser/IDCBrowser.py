@@ -38,7 +38,6 @@ if not is_module_installed('idc-index'):
     slicer.util.pip_install('idc-index')
 
 # Local application imports
-from IDCBrowserLib import clinicalDataPopup
 import idc_index
 from idc_index import index
 from slicer.ScriptedLoadableModule import *
@@ -437,14 +436,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.statusLabel = qt.QLabel('')
     statusHBoxLayout.addWidget(self.statusLabel)
     statusHBoxLayout.addStretch(1)
-    #
-    # clinical data context menu
-    #
-    self.patientsTableWidget.setContextMenuPolicy(2)
-    self.clinicalDataRetrieveAction = qt.QAction("Get Clinical Data", self.patientsTableWidget)
-    self.patientsTableWidget.addAction(self.clinicalDataRetrieveAction)
-    self.clinicalDataRetrieveAction.enabled = False
-
+  
     #
     # delete data context menu
     #
@@ -477,7 +469,6 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     settingsGridLayout.addWidget(storagePathLabel, 0, 0, 1, 1)
     settingsGridLayout.addWidget(self.storagePathButton, 0, 1, 1, 2)
     settingsGridLayout.addWidget(self.storageResetButton, 0, 3, 1, 1)
-    self.clinicalPopup = clinicalDataPopup.clinicalDataPopup(self.cachePath, self.reportIcon)
 
     # connections
     self.showBrowserButton.connect('clicked(bool)', self.onShowBrowserButton)
@@ -491,9 +482,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.cancelDownloadButton.connect('clicked(bool)', self.onCancelDownloadButton)
     self.storagePathButton.connect('directoryChanged(const QString &)', self.onStoragePathButton)
     self.storageResetButton.connect('clicked(bool)', self.onStorageResetButton)
-    self.clinicalDataRetrieveAction.connect('triggered()', self.onContextMenuTriggered)
     self.removeSeriesAction.connect('triggered()', self.onRemoveSeriesContextMenuTriggered)
-    self.clinicalDataRetrieveAction.connect('triggered()', self.clinicalPopup.open)
     self.seriesSelectAllButton.connect('clicked(bool)', self.onSeriesSelectAllButton)
     self.seriesSelectNoneButton.connect('clicked(bool)', self.onSeriesSelectNoneButton)
     self.studiesSelectAllButton.connect('clicked(bool)', self.onStudiesSelectAllButton)
@@ -624,12 +613,6 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     else:
       summary_text = "Modalities: "+str(collection_summary.Modality).replace('\'','')+" Total size: "+str(round(float(collection_summary.series_size_MB),2))+" MB"
     self.logoLabel.setText(summary_text)
-
-    self.showStatus(self.progressMessage)
-    if self.selectedCollection[0:4] != 'TCGA':
-      self.clinicalDataRetrieveAction.enabled = False
-    else:
-      self.clinicalDataRetrieveAction.enabled = True
 
     patientsList = None
     if os.path.isfile(cacheFile) and self.useCacheFlag:

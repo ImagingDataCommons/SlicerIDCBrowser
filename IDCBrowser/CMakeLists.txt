@@ -1,12 +1,9 @@
 #-----------------------------------------------------------------------------
 set(MODULE_NAME IDCBrowser)
-set(LIB_NAME IDCBrowserLib)
 
 #-----------------------------------------------------------------------------
 set(MODULE_PYTHON_SCRIPTS
   ${MODULE_NAME}.py
-  ${LIB_NAME}/__init__.py
-  ${LIB_NAME}/clinicalDataPopup.py
   )
 
 set(MODULE_PYTHON_RESOURCES
