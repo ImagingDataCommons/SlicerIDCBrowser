@@ -9,7 +9,7 @@ IDCBrowser is a [3D Slicer](http://slicer.org/) extension for browsing and downl
 
 Development of this extension was [initiated](https://projectweek.na-mic.org/PW39_2023_Montreal/Projects/SlicerIDCBrowser/) in June 2023. As of October 7, 2023, the extension should be available in the 3D Slicer 5.5.0 preview and 5.4.0 stable releases.
 
-## Usage
+## Installation
 
 You can install the extension via 3D Slicer [Extensions Manager](https://slicer.readthedocs.io/en/latest/user_guide/extensions_manager.html). 
 
