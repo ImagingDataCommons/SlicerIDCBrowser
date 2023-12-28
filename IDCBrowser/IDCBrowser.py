@@ -1352,7 +1352,7 @@ class IDCBrowserLogic(ScriptedLoadableModuleLogic):
     return os.path.join(idc_index_pip_dir,'idc_index.csv.zip')
 
 
-class IDCBrowserTest(unittest.TestCase):
+class IDCBrowserTest(ScriptedLoadableModuleTest):
   """
   This is the test case for your scripted module.
   """
