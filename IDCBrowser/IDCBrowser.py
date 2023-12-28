@@ -539,6 +539,8 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
     if not self.popupPositioned:
       mainWindow = slicer.util.mainWindow()
+      if mainWindow is None:
+        return
       screenMainPos = mainWindow.pos
       x = screenMainPos.x() + 100
       y = screenMainPos.y() + 100
