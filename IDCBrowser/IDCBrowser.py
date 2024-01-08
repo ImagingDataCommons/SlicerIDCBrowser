@@ -35,7 +35,7 @@ def is_module_installed(module_name):
 
 # Check and install 'idc-index' if not installed
 if not is_module_installed('idc-index'):
-    slicer.util.pip_install('idc-index')
+    slicer.util.pip_install('idc-index>=0.2.8')
 
 # Local application imports
 import idc_index
@@ -51,12 +51,12 @@ class IDCBrowser(ScriptedLoadableModule):
 
     ScriptedLoadableModule.__init__(self, parent)
 
-    parent.title = "SlicerIDCBrowser | NCI Imaging Data Commons data release v16"
+    parent.title = "SlicerIDCBrowser"
     parent.categories = ["Informatics"]
     parent.dependencies = []
     parent.contributors = ["Andrey Fedorov (SPL, BWH)"]
     parent.helpText = """ Explore the content of NCI Imaging Data Commons and download DICOM data into 3D Slicer. See <a href=\"https://github.com/ImagingDataCommons/SlicerIDCBrowser\">
-    the documentation</a> for more information."""
+    the documentation</a> for more information. This index corresponds to the IDC data release """ + idc_index.index.idc_version + """. """
     parent.acknowledgementText = """ This project has been funded in whole or in part with Federal funds from the National Cancer Institute, National Institutes of Health, under Task Order No. HHSN26110071 under Contract No. HHSN261201500003l.
     """
 
@@ -96,7 +96,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
 
     self.browserWidget = qt.QWidget()
-    self.browserWidget.setWindowTitle('SlicerIDCBrowser | NCI Imaging Data Commons data release v16')
+    self.browserWidget.setWindowTitle('SlicerIDCBrowser | NCI Imaging Data Commons data release '+idc_index.index.idc_version)
 
     self.initialConnection = False
     self.seriesTableRowCount = 0
@@ -200,7 +200,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     # Browser Area
     #
     browserCollapsibleButton = ctk.ctkCollapsibleButton()
-    browserCollapsibleButton.text = "SlicerIDCBrowser | NCI Imaging Data Commons data release v16"
+    browserCollapsibleButton.text = "SlicerIDCBrowser | NCI Imaging Data Commons data release " + idc_index.index.idc_version
     self.layout.addWidget(browserCollapsibleButton)
     browserLayout = qt.QVBoxLayout(browserCollapsibleButton)
 
@@ -232,6 +232,35 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     collectionsFormLayout = qt.QHBoxLayout(self.collectionsCollapsibleGroupBox)
 
     #
+    # Manifest Downloader Area
+    #
+    downloaderCollapsibleButton = ctk.ctkCollapsibleButton()
+    downloaderCollapsibleButton.text = "IDC Portal manifest downloader"
+    self.layout.addWidget(downloaderCollapsibleButton)
+    downloaderLayout = qt.QFormLayout(downloaderCollapsibleButton)
+
+    # add manifest file selector
+    label = qt.QLabel('IDC Portal manifest:')
+    self.manifestSelector = ctk.ctkPathLineEdit()
+    downloaderLayout.addRow(label, self.manifestSelector)
+
+    # add output directory selector
+    label = qt.QLabel('Download directory:')
+    self.downloadDestinationSelector = ctk.ctkDirectoryButton()
+    self.downloadDestinationSelector.caption = 'Output directory'
+    self.downloadDestinationSelector.directory = self.storagePath
+    downloaderLayout.addRow(label, self.downloadDestinationSelector)
+
+    self.download_status = qt.QLabel('Download status: Ready')
+    downloaderLayout.addRow(self.download_status)
+
+    #
+    # Show Download Button
+    #
+    self.downloadButton = qt.QPushButton("Download")
+    downloaderLayout.addWidget(self.downloadButton)
+
+    #
     # Collection Selector ComboBox
     #
     self.collectionSelectorLabel = qt.QLabel('Select collection:')
@@ -241,22 +270,10 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.collectionSelector.setMinimumWidth(200)
     collectionsFormLayout.addWidget(self.collectionSelector)
 
-    #
-    # Use Cache CheckBox
-    #
-    self.useCacheCeckBox = qt.QCheckBox("Cache server responses")
-    self.useCacheCeckBox.toolTip = '''For faster browsing if this box is checked\
-    the browser will cache server responses and on further calls\
-    would populate tables based on saved data on disk.'''
-
-    #collectionsFormLayout.addWidget(self.useCacheCeckBox)
-    self.useCacheCeckBox.setCheckState(False)
-    self.useCacheCeckBox.setTristate(False)
     collectionsFormLayout.addStretch(4)
-    logoLabelText = "IDC release v16"
+    logoLabelText = "IDC release "+idc_index.index.idc_version
     self.logoLabel = qt.QLabel(logoLabelText)
     collectionsFormLayout.addWidget(self.logoLabel)
-
     
     #Patient Table Widget
     
@@ -472,11 +489,12 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
     # connections
     self.showBrowserButton.connect('clicked(bool)', self.onShowBrowserButton)
+    self.downloadButton.connect('clicked(bool)', self.onDownloadButton)
     self.collectionSelector.connect('currentIndexChanged(QString)', self.collectionSelected)
     self.patientsTableWidget.connect('itemSelectionChanged()', self.patientsTableSelectionChanged)
     self.studiesTableWidget.connect('itemSelectionChanged()', self.studiesTableSelectionChanged)
     self.seriesTableWidget.connect('itemSelectionChanged()', self.seriesSelected)
-    self.useCacheCeckBox.connect('stateChanged(int)', self.onUseCacheStateChanged)
+    #self.useCacheCeckBox.connect('stateChanged(int)', self.onUseCacheStateChanged)
     self.indexButton.connect('clicked(bool)', self.onIndexButton)
     self.loadButton.connect('clicked(bool)', self.onLoadButton)
     self.cancelDownloadButton.connect('clicked(bool)', self.onCancelDownloadButton)
@@ -501,6 +519,13 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
   def onShowBrowserButton(self):
     self.showBrowser()
+
+  def onDownloadButton(self):
+
+    self.download_status.setText('Download status: Downloading...')
+    slicer.app.processEvents()
+    self.IDCClient.download_from_manifest(self.manifestSelector.currentPath, self.downloadDestinationSelector.directory)
+    self.download_status.setText('Download status: Ready')
 
   def onUseCacheStateChanged(self, state):
     if state == 0:
@@ -950,9 +975,9 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
         import traceback
         traceback.print_exc()
         self.clearStatus()
-        message = "downloadSelectedSeries: Error in getting response from IDC server.\nHTTP Error:\n" + str(error)
+        message = "downloadSelectedSeries: Failed to download " + str(error)
         qt.QMessageBox.critical(slicer.util.mainWindow(),
-                    'SlicerIDCBrowser - data release v16', message, qt.QMessageBox.Ok)
+                    'SlicerIDCBrowser', message, qt.QMessageBox.Ok)
     self.cancelDownloadButton.enabled = False
     self.collectionSelector.enabled = True
     self.patientsTableWidget.enabled = True
