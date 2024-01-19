@@ -25,21 +25,7 @@ import urllib
 #slicer
 from __main__ import vtk, qt, ctk, slicer
 
-# Function to check if a module is installed
-def is_module_installed(module_name):
-    try:
-        pkg_resources.get_distribution(module_name)
-        return True
-    except pkg_resources.DistributionNotFound:
-        return False
-
-# Check and install 'idc-index' if not installed
-if not is_module_installed('idc-index'):
-    slicer.util.pip_install('idc-index>=0.2.8')
-
 # Local application imports
-import idc_index
-from idc_index import index
 from slicer.ScriptedLoadableModule import *
 
 #
@@ -56,8 +42,7 @@ class IDCBrowser(ScriptedLoadableModule):
     parent.dependencies = []
     parent.contributors = ["Andrey Fedorov (SPL, BWH)"]
     parent.helpText = """ Explore the content of NCI Imaging Data Commons and download DICOM data into 3D Slicer. See <a href=\"https://github.com/ImagingDataCommons/SlicerIDCBrowser\">
-    the documentation</a> for more information. This index corresponds to the IDC data release """ + idc_index.index.idc_version + """. """
-    parent.acknowledgementText = """ This project has been funded in whole or in part with Federal funds from the National Cancer Institute, National Institutes of Health, under Task Order No. HHSN26110071 under Contract No. HHSN261201500003l.
+    the documentation</a> for more information. This project has been funded in whole or in part with Federal funds from the National Cancer Institute, National Institutes of Health, under Task Order No. HHSN26110071 under Contract No. HHSN261201500003l.
     """
 
 
@@ -83,8 +68,13 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
     self.logic = IDCBrowserLogic()
 
+    self.logic.setupPythonRequirements()
+
+    from idc_index import index
+
     qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
     self.IDCClient = index.IDCClient()
+
     qt.QApplication.restoreOverrideCursor()
 
     self.IDCClient.s5cmdPath = self.logic.gets5cmdPath()
@@ -96,7 +86,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
 
     self.browserWidget = qt.QWidget()
-    self.browserWidget.setWindowTitle('SlicerIDCBrowser | NCI Imaging Data Commons data release '+idc_index.index.idc_version)
+    self.browserWidget.setWindowTitle('SlicerIDCBrowser | NCI Imaging Data Commons data release '+self.logic.idc_version)
 
     self.initialConnection = False
     self.seriesTableRowCount = 0
@@ -200,7 +190,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     # Browser Area
     #
     browserCollapsibleButton = ctk.ctkCollapsibleButton()
-    browserCollapsibleButton.text = "SlicerIDCBrowser | NCI Imaging Data Commons data release " + idc_index.index.idc_version
+    browserCollapsibleButton.text = "SlicerIDCBrowser | NCI Imaging Data Commons data release " + self.logic.idc_version
     self.layout.addWidget(browserCollapsibleButton)
     browserLayout = qt.QVBoxLayout(browserCollapsibleButton)
 
@@ -271,7 +261,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     collectionsFormLayout.addWidget(self.collectionSelector)
 
     collectionsFormLayout.addStretch(4)
-    logoLabelText = "IDC release "+idc_index.index.idc_version
+    logoLabelText = "IDC release "+self.logic.idc_version
     self.logoLabel = qt.QLabel(logoLabelText)
     collectionsFormLayout.addWidget(self.logoLabel)
     
@@ -1278,9 +1268,31 @@ class IDCBrowserLogic(ScriptedLoadableModuleLogic):
   """
 
   def __init__(self):
-    #self.setups5cmd()
-    #self.setupIDCindex()
+    self.idc_index_location = None
+    self.idc_version = None
     pass
+
+  def setupPythonRequirements(self):
+    import importlib.metadata
+    import importlib.util
+    #import packaging
+
+    try:
+        import idc_index
+    except ModuleNotFoundError as e:
+        if slicer.util.confirmOkCancelDisplay(
+          "The module requires idc-index python package, which will now be installed.\n",
+          "SlicerIDCIndex initialization"
+          ):
+          slicer.app.setOverrideCursor(qt.Qt.WaitCursor)
+          slicer.util.pip_install('idc-index>=0.2.8')
+          slicer.app.restoreOverrideCursor()
+
+          from idc_index import index
+          self.idc_index_location = index.__file__
+          self.idc_version = index.idc_version
+        else:
+          return
 
   def hasImageData(self, volumeNode):
     """This is a dummy logic method that
@@ -1362,7 +1374,7 @@ class IDCBrowserLogic(ScriptedLoadableModuleLogic):
 
   def gets5cmdPath(self):
       # Get the directory of the idc-index module
-      idc_index_pip_dir = os.path.dirname(idc_index.__file__)
+      idc_index_pip_dir = os.path.dirname(self.idc_index_location)
       
       # Construct the s5cmd path based on the operating system
       if os.name == 'nt':  # Windows
@@ -1373,7 +1385,7 @@ class IDCBrowserLogic(ScriptedLoadableModuleLogic):
       return s5cmd_path
 
   def getIDCIndexPath(self):
-    idc_index_pip_dir = os.path.dirname(idc_index.__file__)
+    idc_index_pip_dir = os.path.dirname(self.idc_index_location)
     return os.path.join(idc_index_pip_dir,'idc_index.csv.zip')
 
 
