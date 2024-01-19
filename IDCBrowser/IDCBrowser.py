@@ -68,13 +68,16 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
     self.logic = IDCBrowserLogic()
 
+
+    logging.info("Checking requirements ...")
     self.logic.setupPythonRequirements()
 
     from idc_index import index
 
     qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
-    self.IDCClient = index.IDCClient()
 
+    logging.info("Initializing IDC client ...")
+    self.IDCClient = index.IDCClient()
     qt.QApplication.restoreOverrideCursor()
 
     self.IDCClient.s5cmdPath = self.logic.gets5cmdPath()
@@ -83,7 +86,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.IDCClient.IDCIndexPath = self.logic.getIDCIndexPath()
     logging.debug("IDCIndex path: " + self.IDCClient.IDCIndexPath)
 
-
+    logging.info("Initialization done.")
 
     self.browserWidget = qt.QWidget()
     self.browserWidget.setWindowTitle('SlicerIDCBrowser | NCI Imaging Data Commons data release '+self.logic.idc_version)
@@ -860,7 +863,8 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
           self.selectedStudyRow + 1) + '-' + str(n + 1)
 
         # create download queue
-        if not any(selectedSeries == s for s in self.previouslyDownloadedSeries):
+        #if not any(selectedSeries == s for s in self.previouslyDownloadedSeries):
+        if True:
           downloadFolderPath = os.path.join(self.storagePath, str(len(self.previouslyDownloadedSeries)),
                             selectedSeries) + os.sep
           self.makeDownloadProgressBar(selectedSeries, n)
@@ -876,7 +880,8 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     if self.loadToScene:
       for seriesUID in allSelectedSeriesUIDs:
         logging.debug("Loading series: " + seriesUID)
-        if any(seriesUID == s for s in self.previouslyDownloadedSeries):
+        #if any(seriesUID == s for s in self.previouslyDownloadedSeries):
+        if True:
           self.progressMessage = "Examine Files to Load"
           self.showStatus(self.progressMessage, '')
           plugin = slicer.modules.dicomPlugins['DICOMScalarVolumePlugin']()
@@ -915,29 +920,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
         response = self.IDCClient.download_dicom_series(seriesInstanceUID=selectedSeries, downloadDir=self.extractedFilesDirectory)
         slicer.app.processEvents()
         logging.debug("Downloaded images in %s seconds" % (time.time() - start_time))
-        '''
-        # Save server response as images.zip in current directory
-        if response.getcode() == 200:
-          destinationFile = open(fileName, "wb")
-          status = self.__bufferReadWrite(destinationFile, response, selectedSeries, seriesSize)
 
-          destinationFile.close()
-          logging.debug("Downloaded file %s from the IDC server" % fileName)
-          self.clearStatus()
-          if status:
-            self.progressMessage = "Extracting Images"
-            logging.debug("Extracting images")
-            # Unzip the data
-            self.showStatus(self.progressMessage)
-            totalItems = self.unzip(fileName, self.extractedFilesDirectory)
-            if totalItems == 0:
-              qt.QMessageBox.critical(slicer.util.mainWindow(),
-                          'IDC Browser',
-                          "Failed to retrieve images for series %s. Please report this message to the developers!" % selectedSeries,
-                          qt.QMessageBox.Ok)
-            self.clearStatus()
-            # Import the data into dicomAppWidget and open the dicom browser
-          '''
         try:
           start_time = time.time()
           self.addFilesToDatabase(selectedSeries)
@@ -1280,19 +1263,18 @@ class IDCBrowserLogic(ScriptedLoadableModuleLogic):
     try:
         import idc_index
     except ModuleNotFoundError as e:
-        if slicer.util.confirmOkCancelDisplay(
-          "The module requires idc-index python package, which will now be installed.\n",
-          "SlicerIDCIndex initialization"
-          ):
-          slicer.app.setOverrideCursor(qt.Qt.WaitCursor)
-          slicer.util.pip_install('idc-index>=0.2.8')
-          slicer.app.restoreOverrideCursor()
+      if slicer.util.confirmOkCancelDisplay(
+        "The module requires idc-index python package, which will now be installed.\n",
+        "SlicerIDCIndex initialization"
+        ):
+        slicer.util.pip_install('idc-index>=0.2.8')
 
-          from idc_index import index
-          self.idc_index_location = index.__file__
-          self.idc_version = index.idc_version
-        else:
-          return
+      else:
+        return
+        
+    from idc_index import index
+    self.idc_index_location = index.__file__
+    self.idc_version = index.idc_version
 
   def hasImageData(self, volumeNode):
     """This is a dummy logic method that
