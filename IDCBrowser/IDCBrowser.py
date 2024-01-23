@@ -230,28 +230,77 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     downloaderCollapsibleButton = ctk.ctkCollapsibleButton()
     downloaderCollapsibleButton.text = "IDC Portal manifest downloader"
     self.layout.addWidget(downloaderCollapsibleButton)
-    downloaderLayout = qt.QFormLayout(downloaderCollapsibleButton)
+    downloaderLayout = qt.QGridLayout(downloaderCollapsibleButton)
+
+    comment = qt.QTextEdit()
+    
+    # Add hyperlink
+    comment.append("You can use this section of the module to download data from Imaging Data Commons based on your selction in <a href=\"http://imaging.datacommons.cancer.gov\">IDC Portal</a>. Populate any of the fields below to download data based on your selection: download manifest created using IDC Portal, or PatientID, StudyInstanceUID or SeriesInstanceUID.<br>")
+    comment.setReadOnly(True)
+
+    downloaderLayout.addWidget(comment, 0, 0, 1, 4)
+
+    # TODO: add automatic check for the validity of the entered text
 
     # add manifest file selector
-    label = qt.QLabel('IDC Portal manifest:')
+    label = qt.QLabel('s5cmd manifest:')
     self.manifestSelector = ctk.ctkPathLineEdit()
-    downloaderLayout.addRow(label, self.manifestSelector)
+    self.downloadFromManifestButton = qt.QPushButton("D")
+    self.downloadAndIndexFromManifestButton = qt.QPushButton("DI")
+    downloaderLayout.addWidget(label, 1, 0)
+    downloaderLayout.addWidget(self.manifestSelector, 1, 1)
+    #downloaderLayout.addWidget(self.downloadFromManifestButton, 1, 2)
+    #downloaderLayout.addWidget(self.downloadAndIndexFromManifestButton, 1, 3)
+
+    # add download by PatientID
+    label = qt.QLabel('PatientID:')
+    self.patientIDSelector = qt.QLineEdit()
+    self.patientIDSelector.setPlaceholderText('Enter PatientID here')
+    self.downloadFromPatientIDButton = qt.QPushButton("D")
+    self.downloadAndIndexFromPatientIDButton = qt.QPushButton("DI")
+    downloaderLayout.addWidget(label, 2, 0)
+    downloaderLayout.addWidget(self.patientIDSelector, 2, 1)
+    #downloaderLayout.addWidget(self.downloadFromPatientIDButton, 2, 2)
+    #downloaderLayout.addWidget(self.downloadAndIndexFromPatientIDButton, 2, 3)
+
+    # add download by StudyInstanceUID
+    label = qt.QLabel('StudyInstanceUID:')
+    self.studyUIDSelector = qt.QLineEdit()
+    self.studyUIDSelector.setPlaceholderText('Enter DICOM StudyInstanceUID here')
+    self.downloadFromStudyUIDButton = qt.QPushButton("D")
+    self.downloadAndIndexFromStudyUIDButton = qt.QPushButton("DI")
+    downloaderLayout.addWidget(label, 3, 0)
+    downloaderLayout.addWidget(self.studyUIDSelector, 3, 1)
+    #downloaderLayout.addWidget(self.downloadFromStudyUIDButton, 3, 2)
+    #downloaderLayout.addWidget(self.downloadAndIndexFromStudyUIDButton, 3, 3)
+
+    # add download by SeriesInstanceUID
+    label = qt.QLabel('SeriesInstanceUID:')
+    self.seriesUIDSelector = qt.QLineEdit()
+    self.seriesUIDSelector.setPlaceholderText('Enter DICOM SeriesInstanceUID here')
+    self.downloadFromSeriesUIDButton = qt.QPushButton("D")
+    self.downloadAndIndexFromSeriesUIDButton = qt.QPushButton("DI")
+    downloaderLayout.addWidget(label, 4, 0)
+    downloaderLayout.addWidget(self.seriesUIDSelector, 4, 1)
+    #downloaderLayout.addWidget(self.downloadFromSeriesUIDButton, 4, 2)
+    #downloaderLayout.addWidget(self.downloadAndIndexFromSeriesUIDButton, 4, 3)
 
     # add output directory selector
     label = qt.QLabel('Download directory:')
     self.downloadDestinationSelector = ctk.ctkDirectoryButton()
     self.downloadDestinationSelector.caption = 'Output directory'
     self.downloadDestinationSelector.directory = self.storagePath
-    downloaderLayout.addRow(label, self.downloadDestinationSelector)
+    downloaderLayout.addWidget(label, 5, 0)
+    downloaderLayout.addWidget(self.downloadDestinationSelector, 5, 1, 1, 3)
 
     self.download_status = qt.QLabel('Download status: Ready')
-    downloaderLayout.addRow(self.download_status)
+    downloaderLayout.addWidget(self.download_status, 6, 0)
 
     #
     # Show Download Button
     #
     self.downloadButton = qt.QPushButton("Download")
-    downloaderLayout.addWidget(self.downloadButton)
+    downloaderLayout.addWidget(self.downloadButton, 7,0,1,3)
 
     #
     # Collection Selector ComboBox
@@ -513,11 +562,57 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
   def onShowBrowserButton(self):
     self.showBrowser()
 
+  # TODO: goes to logic
+  def downloadFromQuery(self, query, downloadDestination):
+    logging.debug("Downloading from query: " + query)
+    manifest_path = os.path.join(downloadDestination,'manifest.csv')
+    manifest_df = self.IDCClient.sql_query(query)
+    manifest_df.to_csv(manifest_path, index=False, header=False)
+    self.IDCClient.download_from_manifest(manifest_path, downloadDestination)
+
   def onDownloadButton(self):
 
     self.download_status.setText('Download status: Downloading...')
     slicer.app.processEvents()
-    self.IDCClient.download_from_manifest(self.manifestSelector.currentPath, self.downloadDestinationSelector.directory)
+    import os
+    if(os.path.exists(self.manifestSelector.currentPath)):
+      self.download_status.setText('Downloading from manifest...')
+      self.IDCClient.download_from_manifest(self.manifestSelector.currentPath, self.downloadDestinationSelector.directory)
+      self.download_status.setText('Download from manifest done.')
+
+    if(self.patientIDSelector.text != ''):
+      # TODO: how to interrupt long download from GUI?
+      self.download_status.setText('Downloading from PatientID...')
+      query = """
+        SELECT CONCAT('cp ',series_aws_url,' .')
+        FROM index
+        WHERE PatientID = '""" + self.patientIDSelector.text + """'
+      """
+      self.downloadFromQuery(query, self.downloadDestinationSelector.directory)
+      self.download_status.setText('Download from PatientID done.')
+
+    if(self.studyUIDSelector.text != ''):
+      # TODO: how to interrupt long download from GUI?
+      self.download_status.setText('Downloading from StudyInstanceUID...')
+      query = """
+        SELECT CONCAT('cp ',series_aws_url,' .')
+        FROM index
+        WHERE StudyInstanceUID = '""" + self.studyUIDSelector.text + """'
+      """
+      self.downloadFromQuery(query, self.downloadDestinationSelector.directory)
+      self.download_status.setText('Download from StudyInstanceUID done.')
+
+    if(self.seriesUIDSelector.text != ''):
+      # TODO: how to interrupt long download from GUI?
+      self.download_status.setText('Downloading from SeriesInstanceUID...')
+      query = """
+        SELECT CONCAT('cp ',series_aws_url,' .')
+        FROM index
+        WHERE SeriesInstanceUID = '""" + self.seriesUIDSelector.text + """'
+      """
+      self.downloadFromQuery(query, self.downloadDestinationSelector.directory)
+      self.download_status.setText('Download from SeriesInstanceUID done.')
+
     self.download_status.setText('Download status: Ready')
 
   def onUseCacheStateChanged(self, state):
