@@ -77,7 +77,9 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
 
     logging.info("Initializing IDC client ...")
+    startTime = time.time()
     self.IDCClient = index.IDCClient()
+    logging.info("IDC Client initialized in {0:.2f} seconds.".format(time.time() - startTime))
     qt.QApplication.restoreOverrideCursor()
 
     self.IDCClient.s5cmdPath = self.logic.gets5cmdPath()
@@ -235,7 +237,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     comment = qt.QTextEdit()
     
     # Add hyperlink
-    comment.append("You can use this section of the module to download data from Imaging Data Commons based on your selction in <a href=\"http://imaging.datacommons.cancer.gov\">IDC Portal</a>. Populate any of the fields below to download data based on your selection: download manifest created using IDC Portal, or PatientID, StudyInstanceUID or SeriesInstanceUID.<br>")
+    comment.append("You can use this section of the module to download data from Imaging Data Commons based on your selection in <a href=\"http://imaging.datacommons.cancer.gov\">IDC Portal</a>. Populate any of the fields below to download data based on your selection: download manifest created using IDC Portal, or PatientID, StudyInstanceUID or SeriesInstanceUID.<br>")
     comment.setReadOnly(True)
 
     downloaderLayout.addWidget(comment, 0, 0, 1, 4)
@@ -572,6 +574,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
   def onDownloadButton(self):
 
+    startTime = time.time()
     self.download_status.setText('Download status: Downloading...')
     slicer.app.processEvents()
     import os
@@ -613,7 +616,8 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
       self.downloadFromQuery(query, self.downloadDestinationSelector.directory)
       self.download_status.setText('Download from SeriesInstanceUID done.')
 
-    self.download_status.setText('Download status: Ready')
+    self.download_status.setText('Download status: Done in {0:.2f} seconds.'.format(time.time() - startTime))
+    logging.info('Download status: Done in {0:.2f} seconds.'.format(time.time() - startTime))
 
   def onUseCacheStateChanged(self, state):
     if state == 0:
@@ -916,7 +920,9 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
   def onLoadButton(self):
     self.loadToScene = True
+    startTime = time.time()
     self.addSelectedToDownloadQueue()
+    logging.info('onLoadButton: Done in {0:.2f} seconds.'.format(time.time() - startTime))
 
   def onCancelDownloadButton(self):
     self.cancelDownload = True
