@@ -237,7 +237,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     comment = qt.QTextEdit()
     
     # Add hyperlink
-    comment.append("You can use this section of the module to download data from Imaging Data Commons based on your selction in <a href=\"http://imaging.datacommons.cancer.gov\">IDC Portal</a>. Populate any of the fields below to download data based on your selection: download manifest created using IDC Portal, or PatientID, StudyInstanceUID or SeriesInstanceUID.<br>")
+    comment.append("You can use this section of the module to download data from Imaging Data Commons based on your selection in <a href=\"http://imaging.datacommons.cancer.gov\">IDC Portal</a>. Populate any of the fields below to download data based on your selection: download manifest created using IDC Portal, or PatientID, StudyInstanceUID or SeriesInstanceUID.<br>")
     comment.setReadOnly(True)
 
     downloaderLayout.addWidget(comment, 0, 0, 1, 4)
