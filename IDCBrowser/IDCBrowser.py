@@ -1368,7 +1368,7 @@ class IDCBrowserLogic(ScriptedLoadableModuleLogic):
         "The module requires idc-index python package, which will now be installed.\n",
         "SlicerIDCIndex initialization"
         ):
-        slicer.util.pip_install('idc-index>=0.2.8')
+        slicer.util.pip_install('idc-index>=0.2.10')
 
       else:
         return
