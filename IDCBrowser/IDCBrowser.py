@@ -301,7 +301,16 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     #
     # Show Download Button
     #
-    self.downloadButton = qt.QPushButton("Download")
+    self.downloadButton = ctk.ctkMenuButton()
+    self.downloadButton.text = "Download"
+    downloadButtonMenu = qt.QMenu("Download options", self.downloadButton)
+    self.downloadButton.setMenu(downloadButtonMenu)
+
+    self.importOnDownloadAction = qt.QAction("Import downloaded files to DICOM database", downloadButtonMenu)
+    self.importOnDownloadAction.setToolTip("If enabled, all imported files are copied into the DICOM database.")                                    
+    self.importOnDownloadAction.setCheckable(True)  
+    downloadButtonMenu.addAction(self.importOnDownloadAction)  
+
     downloaderLayout.addWidget(self.downloadButton, 7,0,1,3)
 
     #
