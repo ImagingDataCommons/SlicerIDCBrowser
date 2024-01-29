@@ -19,9 +19,43 @@ This extension relies on [`s5cmd`](https://github.com/peak/s5cmd) command line t
 
 **WARNING**: the extension is in its early stages, with the interface and features expected to evolve.
 
+## View IDC data in a locally installed Slicer Instance
+
+## 👷‍♂️🚧 **WARNING**: this feature is in its early development stages. Its functionality may change. Stay tuned for the updates and documentation, and please share your feedback about it by opening issues in this repository🚧
+
+Viewing IDC Data directly in Slicer is one of the features we are planning to bring and is still in development stages
+
+### Steps to try out this feature: 
+1. Git clone this repo.
+```bash
+git clone https://github.com/ImagingDataCommons/SlicerIDCBrowser.git
+```
+2. Checkout add-slicer-idc-viewer branch (eventually this feature will be available on main branch)
+```bash
+cd SlicerIDCBrowser
+git checkout add-slicer-idc-viewer
+```
+
+3. Add the `src` folder as one of the module paths in Slicer settings. Refer to the screenshot below for more information:
+   
+![Screenshot (17)](https://github.com/vkt1414/slicer-idc-viewer/assets/115020590/48b5a945-3d81-45f8-b7e5-9b1e9f1024e9)
+
+![Screenshot (18)](https://github.com/vkt1414/slicer-idc-viewer/assets/115020590/6136b1de-b117-4b04-b961-57cf14f0a4e9)
+
+![Screenshot (19)](https://github.com/vkt1414/slicer-idc-viewer/assets/115020590/157d50c9-6224-4984-8b94-714a76b86a20)
+
+![Screenshot (20)](https://github.com/vkt1414/slicer-idc-viewer/assets/115020590/666a5513-72c0-43af-80eb-ece9dab0cf76)
+
+4. Restart Slicer
+5. Open a URL like `slicer://idc-browser/?download=$seriesinstanceuid` for example
+   ```
+   slicer://idc-browser/?download=1.2.840.113654.2.55.154809705591242159075253605419469935510
+   ```
+
 ## Development
 
 See current status of the extension builds in the 3D Slicer Preview dashboard [here](https://slicer.cdash.org/index.php?project=SlicerPreview&filtercount=1&showfilters=1&field1=buildname&compare1=63&value1=idcbrowser).
+
 
 ## Acknowledgments
 
