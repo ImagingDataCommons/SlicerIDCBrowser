@@ -302,14 +302,23 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     # Show Download Button
     #
     self.downloadButton = ctk.ctkMenuButton()
-    self.downloadButton.text = "Download"
+    self.downloadButton.text = "Download, import and load into scene"
     downloadButtonMenu = qt.QMenu("Download options", self.downloadButton)
     self.downloadButton.setMenu(downloadButtonMenu)
 
     self.importOnDownloadAction = qt.QAction("Import downloaded files to DICOM database", downloadButtonMenu)
-    self.importOnDownloadAction.setToolTip("If enabled, all imported files are copied into the DICOM database.")                                    
+    self.importOnDownloadAction.setToolTip("If enabled, all downloaded files are imported into the DICOM database.")
     self.importOnDownloadAction.setCheckable(True)  
+    self.importOnDownloadAction.setChecked(True)
     downloadButtonMenu.addAction(self.importOnDownloadAction)  
+
+    
+    self.loadOnDownloadAction = qt.QAction("Open downloaded series", downloadButtonMenu)
+    self.loadOnDownloadAction.setToolTip("If enabled, all downloaded files are imported into the DICOM database and loaded into the scene.")
+    self.loadOnDownloadAction.setCheckable(False)  
+    self.loadOnDownloadAction.setChecked(False)
+    #downloadButtonMenu.addAction(self.loadOnDownloadAction)  
+    self.onDownloadOptionsToggled(False)
 
     downloaderLayout.addWidget(self.downloadButton, 7,0,1,3)
 
@@ -559,6 +568,9 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.studiesSelectAllButton.connect('clicked(bool)', self.onStudiesSelectAllButton)
     self.studiesSelectNoneButton.connect('clicked(bool)', self.onStudiesSelectNoneButton)
 
+    self.loadOnDownloadAction.connect('toggled(bool)', self.onDownloadOptionsToggled)
+    self.importOnDownloadAction.connect('toggled(bool)', self.onDownloadOptionsToggled)
+
     # Add vertical spacer
     self.layout.addStretch(1)
 
@@ -569,6 +581,19 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
   def cleanup(self):
     pass
+
+  def onDownloadOptionsToggled(self, state):
+    importState = self.importOnDownloadAction.isChecked()
+    loadState = self.loadOnDownloadAction.isChecked()
+
+    buttonLabel = "Download"
+    if importState:
+      if loadState:
+        buttonLabel = buttonLabel + ", import and load into scene"
+      else:
+        buttonLabel = buttonLabel + " and import into DICOM database"
+
+    self.downloadButton.text = buttonLabel
 
   def onShowBrowserButton(self):
     self.showBrowser()
@@ -628,6 +653,20 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.download_status.setText('Download status: Done in {0:.2f} seconds.'.format(time.time() - startTime))
     logging.info('Download status: Done in {0:.2f} seconds.'.format(time.time() - startTime))
 
+    if self.importOnDownloadAction.isChecked():
+      logging.info('Importing downloaded data into DICOM database ...')
+      self.download_status.setText('Importing downloaded data into DICOM database ...')
+      self.addFilesToDatabase(self.downloadDestinationSelector.directory)
+      self.download_status.setText('Importing downloaded data into DICOM database done.')
+      logging.info('Importing downloaded data into DICOM database done.')
+
+    if self.loadOnDownloadAction.isChecked():
+      logging.info('Loading downloaded data into scene ...')
+      self.download_status.setText('Loading downloaded data into scene ...')
+      self.logic.loadData(self.downloadDestinationSelector.directory)
+      self.download_status.setText('Loading downloaded data into scene done.')
+      logging.info('Loading downloaded data into scene done.')
+ 
   def onUseCacheStateChanged(self, state):
     if state == 0:
       self.useCacheFlag = False
@@ -940,16 +979,18 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     downloadQueue = {}
     seriesRowNumber = {}
 
-  def addFilesToDatabase(self, seriesUID):
+  def addFilesToDatabase(self, directory=None):
     self.progressMessage = "Adding Files to DICOM Database "
     self.showStatus(self.progressMessage)
-    dicomWidget = slicer.modules.dicom.widgetRepresentation().self()
 
     indexer = ctk.ctkDICOMIndexer()
     # DICOM indexer uses the current DICOM database folder as the basis for relative paths,
     # therefore we must convert the folder path to absolute to ensure this code works
     # even when a relative path is used as self.extractedFilesDirectory.
-    indexer.addDirectory(slicer.dicomDatabase, os.path.abspath(self.extractedFilesDirectory))
+    if not directory:
+      indexer.addDirectory(slicer.dicomDatabase, os.path.abspath(self.extractedFilesDirectory))
+    else:
+      indexer.addDirectory(slicer.dicomDatabase, os.path.abspath(directory))
     indexer.waitForImportFinished()
     self.clearStatus()
 
@@ -1033,7 +1074,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
         try:
           start_time = time.time()
-          self.addFilesToDatabase(selectedSeries)
+          self.addFilesToDatabase()
           logging.debug("Added files to database in %s seconds" % (time.time() - start_time))
           self.previouslyDownloadedSeries.append(selectedSeries)
           '''
