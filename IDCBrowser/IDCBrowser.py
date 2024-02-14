@@ -82,7 +82,6 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     logging.info("IDC Client initialized in {0:.2f} seconds.".format(time.time() - startTime))
     qt.QApplication.restoreOverrideCursor()
 
-    self.IDCClient.s5cmdPath = self.logic.gets5cmdPath()
     logging.debug("s5cmd path: " + self.IDCClient.s5cmdPath)
 
     self.IDCClient.IDCIndexPath = self.logic.getIDCIndexPath()
@@ -1504,18 +1503,6 @@ class IDCBrowserLogic(ScriptedLoadableModuleLogic):
     self.takeScreenshot('IDCBrowser-Start', 'Start', -1)
 
     return True
-
-  def gets5cmdPath(self):
-      # Get the directory of the idc-index module
-      idc_index_pip_dir = os.path.dirname(self.idc_index_location)
-      
-      # Construct the s5cmd path based on the operating system
-      if os.name == 'nt':  # Windows
-          s5cmd_path = os.path.join(idc_index_pip_dir, 's5cmd.exe')
-      else:  # Unix-based system
-          s5cmd_path = os.path.join(idc_index_pip_dir, 's5cmd')
-      
-      return s5cmd_path
 
   def getIDCIndexPath(self):
     idc_index_pip_dir = os.path.dirname(self.idc_index_location)
