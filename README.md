@@ -15,7 +15,7 @@ You can install the extension via 3D Slicer [Extensions Manager](https://slicer.
 
 Once the extension is installed, it provides interface to choose from any of the imaging collections available in Imaging Data Commons, and select and download imaging data at the patient, study or series level. 
 
-This extension relies on [`s5cmd`](https://github.com/peak/s5cmd) command line tool, which is installed by the extension, and is used to download images stored in DICOM format from the cloud-based storage buckets maintained by the IDC team.
+This extension relies on the [`idc-index`](https://pypi.org/project/idc-index/) package for searching IDC and downloading IDC content. 
 
 **WARNING**: the extension is in its early stages, with the interface and features expected to evolve.
 
