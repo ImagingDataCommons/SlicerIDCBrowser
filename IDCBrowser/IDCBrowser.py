@@ -1424,7 +1424,7 @@ class IDCBrowserLogic(ScriptedLoadableModuleLogic):
         
     from idc_index import index
     self.idc_index_location = index.__file__
-    self.idc_version = index.idc_version
+    self.idc_version = index.IDCClient.get_idc_version()
 
   def hasImageData(self, volumeNode):
     """This is a dummy logic method that
