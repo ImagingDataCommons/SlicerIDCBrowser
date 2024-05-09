@@ -7,6 +7,8 @@ import csv
 import json
 import logging
 import os.path
+import pathlib
+from pathlib import Path
 import pickle
 import string
 import time
@@ -1060,14 +1062,21 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
         f.close()
       fileName = downloadFolderPath + 'images.zip'
       logging.debug("Downloading images to " + fileName)
-      self.extractedFilesDirectory = downloadFolderPath + 'images'
+      #self.extractedFilesDirectory = downloadFolderPath + 'images'
+
+      downloadFolderPath = Path(downloadFolderPath)  # ensure it's a Path object
+      images_dir = downloadFolderPath / 'images'
+      images_dir.mkdir(parents=True, exist_ok=True)
+      self.extractedFilesDirectory = images_dir
+
       self.progressMessage = "Downloading Images for series InstanceUID: " + selectedSeries
       self.showStatus(self.progressMessage)
       #seriesSize = self.getSeriesSize(selectedSeries)
       logging.debug(self.progressMessage)
       try:
         start_time = time.time()
-        response = self.IDCClient.download_dicom_series(seriesInstanceUID=selectedSeries, downloadDir=self.extractedFilesDirectory)
+        logging.debug(f"selected_series:{selectedSeries}")
+        response = self.IDCClient.download_dicom_series(seriesInstanceUID=selectedSeries, downloadDir=self.extractedFilesDirectory, dirTemplate=None)
         slicer.app.processEvents()
         logging.debug("Downloaded images in %s seconds" % (time.time() - start_time))
 
