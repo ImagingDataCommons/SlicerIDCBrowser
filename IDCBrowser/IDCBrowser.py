@@ -605,7 +605,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     manifest_path = os.path.join(downloadDestination,'manifest.csv')
     manifest_df = self.IDCClient.sql_query(query)
     manifest_df.to_csv(manifest_path, index=False, header=False)
-    self.IDCClient.download_from_manifest(manifest_path, downloadDestination)
+    self.IDCClient.download_from_manifest(manifestFile=manifest_path, downloadDir=downloadDestination, dirTemplate=None)
 
   def onDownloadButton(self):
 
@@ -615,7 +615,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     import os
     if(os.path.exists(self.manifestSelector.currentPath)):
       self.download_status.setText('Downloading from manifest...')
-      self.IDCClient.download_from_manifest(self.manifestSelector.currentPath, self.downloadDestinationSelector.directory)
+      self.IDCClient.download_from_manifest(manifestFile=self.manifestSelector.currentPath, downloadDir=self.downloadDestinationSelector.directory, dirTemplate=None)
       self.download_status.setText('Download from manifest done.')
 
     if(self.patientIDSelector.text != ''):
