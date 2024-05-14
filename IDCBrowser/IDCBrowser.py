@@ -603,6 +603,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     manifest_path = os.path.join(downloadDestination,'manifest.csv')
     manifest_df = self.IDCClient.sql_query(query)
     manifest_df.to_csv(manifest_path, index=False, header=False)
+    logging.info("Will download to "+downloadDestination)
     self.IDCClient.download_from_manifest(manifest_path, downloadDestination)
 
   def onDownloadButton(self):
@@ -1015,10 +1016,8 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
         # create download queue
         #if not any(selectedSeries == s for s in self.previouslyDownloadedSeries):
         if True:
-          downloadFolderPath = os.path.join(self.storagePath, str(len(self.previouslyDownloadedSeries)),
-                            selectedSeries) + os.sep
           self.makeDownloadProgressBar(selectedSeries, n)
-          self.downloadQueue[selectedSeries] = downloadFolderPath
+          self.downloadQueue[selectedSeries] = self.storagePath
           self.seriesRowNumber[selectedSeries] = n
 
     self.seriesTableWidget.clearSelection()
@@ -1060,7 +1059,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
         f.close()
       fileName = downloadFolderPath + 'images.zip'
       logging.debug("Downloading images to " + fileName)
-      self.extractedFilesDirectory = downloadFolderPath + 'images'
+      self.extractedFilesDirectory = downloadFolderPath
       self.progressMessage = "Downloading Images for series InstanceUID: " + selectedSeries
       self.showStatus(self.progressMessage)
       #seriesSize = self.getSeriesSize(selectedSeries)
