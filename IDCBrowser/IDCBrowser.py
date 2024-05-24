@@ -1027,6 +1027,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.downloadSelectedSeries()
 
     if self.loadToScene:
+      failedSeriesCount = 0
       for seriesUID in allSelectedSeriesUIDs:
         logging.debug("Loading series: " + seriesUID)
         #if any(seriesUID == s for s in self.previouslyDownloadedSeries):
@@ -1037,13 +1038,28 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
           seriesUID = seriesUID.replace("'", "")
           dicomDatabase = slicer.dicomDatabase
           fileList = slicer.dicomDatabase.filesForSeries(seriesUID)
-          loadables = plugin.examine([fileList])
+          loadables = []
+
+          try:
+            loadables = plugin.examine([fileList])
+          except Exception as error:
+            failedSeriesCount += 1
+
           self.clearStatus()
           if len(loadables)>0:
             volume = plugin.load(loadables[0])
-            logging.debug("Loaded volume: " + volume.GetName())
+            if volume:
+              logging.debug("Loaded volume: " + volume.GetName())
+            else:
+              failedSeriesCount += 1
           else:
-            self.showStatus("Unable to load DICOM content. Please retry from DICOM Browser!")
+            failedSeriesCount += 1
+
+      if failedSeriesCount > 0:
+        message = "Download was successful, but failed to load " + str(failedSeriesCount) + \
+          " series into the Slicer scene. You can retry loading from DICOM Browser!"
+        qt.QMessageBox.critical(slicer.util.mainWindow(),
+                    'SlicerIDCBrowser', message, qt.QMessageBox.Ok)
 
   def downloadSelectedSeries(self):
     
