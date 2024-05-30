@@ -7,11 +7,9 @@
 ## About
 IDCBrowser is a [3D Slicer](http://slicer.org/) extension for browsing and downloading DICOM files from [NCI Imaging Data Commons](https://imaging.datacommons.cancer.gov/).
 
-Development of this extension was [initiated](https://projectweek.na-mic.org/PW39_2023_Montreal/Projects/SlicerIDCBrowser/) in June 2023. As of October 7, 2023, the extension should be available in the 3D Slicer 5.5.0 preview and 5.4.0 stable releases.
-
 ## Installation
 
-You can install the extension via 3D Slicer [Extensions Manager](https://slicer.readthedocs.io/en/latest/user_guide/extensions_manager.html). 
+You will need to have a latest preview or stable 5.6.2 release of 3D Slicer, which you can donwload for your platform here: [https://download.slicer.org](https://download.slicer.org). You can next install the extension via 3D Slicer [Extensions Manager](https://slicer.readthedocs.io/en/latest/user_guide/extensions_manager.html). 
 
 Once the extension is installed, it provides interface to choose from any of the imaging collections available in Imaging Data Commons, and select and download imaging data at the patient, study or series level. 
 
