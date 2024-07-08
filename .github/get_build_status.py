@@ -44,6 +44,7 @@ if response.status_code == 200:
     error_sum = df['ConfigureErrors'].sum()+ df['CompilationErrors'].sum()+df['TestFail'].sum()
     has_errors = error_sum > 0
     if has_errors:
+      print('Configure errors, complilation errors and/or failing tests were detected. This workflow will fail.')
       sys.exit(1)
     else:
       sys.exit(0)
