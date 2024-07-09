@@ -1,4 +1,10 @@
-# slicer_server_utils.py
+import os
+import slicer
+import urllib.parse
+from slicer.ScriptedLoadableModule import *
+from WebServer import WebServerLogic
+from typing import Optional
+from WebServerLib.BaseRequestHandler import BaseRequestHandler, BaseRequestLoggingFunction
 
 import os
 import subprocess
@@ -17,69 +23,6 @@ import os
 from typing import Optional
 from idc_index import index
 
-# PORT = 2042
-
-# def get_slicer_location():
-#     launcherPath = qt.QDir.toNativeSeparators(
-#         qt.QFileInfo(slicer.app.launcherExecutableFilePath).absoluteFilePath()
-#     )
-#     return launcherPath
-
-# def is_server_running():
-#     try:
-#         response = requests.get(f"http://127.0.0.1:{PORT}/idc/collections", timeout=3)
-#         if 'applicationName' in response.json():
-#             return True
-#     except Exception as e:
-#         logging.debug("Application is not available: " + str(e))
-#     return False
-
-# def start_server(slicer_executable=None, timeoutSec=60):
-#     # if not slicer_executable:
-#     #     if 'SLICER_EXECUTABLE' not in os.environ:
-#     #         os.environ['SLICER_EXECUTABLE'] = get_slicer_location()
-#     #         slicer_executable = get_slicer_location()
-#     # p = subprocess.Popen([slicer_executable, "--python-code", f"wslogic = getModuleLogic('WebServer'); wslogic.port={PORT}; wslogic.enableSlicer=False; wslogic.enableStaticPages=False; wslogic.enableDICOM=True; wslogic.requestHandlers = [IDCRequestHandler()], wslogic.start()"])
-#     # start = time.time()
-#     # connected = False
-#     # while not connected:
-#     #     connected = is_server_running()
-#     #     if time.time() - start > timeoutSec:
-#     #         raise requests.exceptions.ConnectTimeout("Timeout while waiting for application to start")
-#     # return p
-#     if not is_server_running():
-        
-# The following part remains unchanged
-#         PORT = 2042
-#         import WebServer
-
-#         try:
-#             logic.stop()
-#         except NameError:
-#             pass
-
-#         logMessage = WebServer.WebServerLogic.defaultLogMessage
-#         requestHandlers = [IDCRequestHandler()]
-#         logic = WebServer.WebServerLogic(port=PORT, logMessage=logMessage, enableSlicer=True, enableStaticPages=False, enableDICOM=False, requestHandlers=requestHandlers)
-
-#         logic.start()
-
-import os
-import subprocess
-import time
-import logging
-import requests
-from slicer.util import VTKObservationMixin
-import qt
-import slicer
-import ctk
-# IDCRequestHandler.py
-
-from WebServerLib.BaseRequestHandler import BaseRequestHandler, BaseRequestLoggingFunction
-import urllib
-import os
-from typing import Optional
-from idc_index import index
 
 class IDCRequestHandler(BaseRequestHandler):
 
@@ -87,9 +30,6 @@ class IDCRequestHandler(BaseRequestHandler):
         self.logMessage = logMessage
         self.client = index.IDCClient()
         self.index_df = self.client.index
-
-        # if not is_server_running():
-        #     start_server()
 
     def canHandleRequest(self, uri: bytes, **_kwargs) -> float:
         parsedURL = urllib.parse.urlparse(uri)
@@ -160,17 +100,30 @@ class IDCRequestHandler(BaseRequestHandler):
         return contentType, responseBody
 
 
-# The following part remains unchanged
-PORT = 2042
-import WebServer
+class IDCHandlerModule(ScriptedLoadableModule):
+    def __init__(self, parent):
+        ScriptedLoadableModule.__init__(self, parent)
+        self.parent.title = "IDC Handler Module"
+        self.parent.categories = ["Examples"]
+        self.parent.contributors = ["Your Name (Your Organization)"]
+        self.parent.helpText = """This module registers an IDCRequestHandler to handle IDC-related requests."""
+        self.parent.acknowledgementText = """This module was developed by Your Name, Your Organization."""
 
-try:
-    logic.stop()
-except NameError:
-    pass
+        slicer.app.connect("startupCompleted()", self.onStartupCompleted)
 
-logMessage = WebServer.WebServerLogic.defaultLogMessage
-requestHandlers = [IDCRequestHandler()]
-logic = WebServer.WebServerLogic(port=PORT, logMessage=logMessage, enableSlicer=True, enableStaticPages=False, enableDICOM=True, requestHandlers=requestHandlers)
+    def onStartupCompleted(self):
+        print("SlicerStartupCompleted emitted")
 
-logic.start()
+        PORT = 2042
+        try:
+            logic.stop()
+        except NameError:
+            pass
+
+        logMessage = WebServerLogic.defaultLogMessage
+        requestHandlers = [IDCRequestHandler()]
+        logic = WebServerLogic(port=PORT, logMessage=logMessage, enableSlicer=True, enableStaticPages=False, enableDICOM=True, requestHandlers=requestHandlers)
+
+        logic.start()
+        print("IDC Request Handler has been registered and server started.")
+
