@@ -7,6 +7,7 @@ from typing import Optional
 from WebServerLib.BaseRequestHandler import BaseRequestHandler, BaseRequestLoggingFunction
 
 import os
+import platform
 import subprocess
 import time
 import logging
@@ -15,14 +16,7 @@ from slicer.util import VTKObservationMixin
 import qt
 import slicer
 import ctk
-# IDCRequestHandler.py
-
-from WebServerLib.BaseRequestHandler import BaseRequestHandler, BaseRequestLoggingFunction
-import urllib
-import os
-from typing import Optional
 from idc_index import index
-
 
 class IDCRequestHandler(BaseRequestHandler):
 
@@ -33,7 +27,7 @@ class IDCRequestHandler(BaseRequestHandler):
 
     def canHandleRequest(self, uri: bytes, **_kwargs) -> float:
         parsedURL = urllib.parse.urlparse(uri)
-        if parsedURL.path.startswith(b"/idc"):
+        if (parsedURL.path.startswith(b"/idc")):
             return 0.5
         return 0.0
 
@@ -126,4 +120,81 @@ class IDCHandlerModule(ScriptedLoadableModule):
 
         logic.start()
         print("IDC Request Handler has been registered and server started.")
+        
+        self.writeResolverScript()
+        self.registerCustomProtocol()
+
+    def writeResolverScript(self):
+        current_dir = os.path.dirname(os.path.realpath(__file__))
+        resolver_script_path = os.path.join(current_dir,'Resources', 'resolver.py')
+
+        resolver_script_content = '''import sys
+import urllib.parse
+import requests
+import webbrowser
+
+def resolve_url(url):
+    # Parse the URL
+    parsed_url = urllib.parse.urlparse(url)
+
+    # Remove the scheme (idcbrowser://) from the URL and split the path
+    path_parts = parsed_url.netloc.split('/') + parsed_url.path.split('/')[1:]
+
+    # Check the first part of the path to determine the endpoint
+    if path_parts[0] == 'collections':
+        new_url = "http://localhost:2042/idc/collections"
+       # Open the new URL in a web browser
+        webbrowser.open(new_url)
+    elif path_parts[0] == 'series':
+        new_url = f"http://localhost:2042/idc/download/seriesInstanceUID/{path_parts[1]}"
+    elif path_parts[0] == 'studies':
+        new_url = f"http://localhost:2042/idc/download/studyInstanceUID/{path_parts[1]}"
+    else:
+        print(f"Unhandled path: {path_parts[0]}")
+        return
+
+    # Make the request to the new URL
+    response = requests.get(new_url)
+
+    # Print the response
+    print(response.text)
+
+if __name__ == "__main__":
+    # The URL is passed as the first argument
+    url = sys.argv[1]
+
+    # Resolve the URL
+    resolve_url(url)
+'''
+
+        with open(resolver_script_path, 'w') as f:
+            f.write(resolver_script_content)
+        print(f"Resolver script written to {resolver_script_path}")
+
+    def registerCustomProtocol(self):
+        if platform.system() == "Linux":
+            # Check if the protocol is already registered
+            if os.path.exists(os.path.expanduser("~/.local/share/applications/idcbrowser.desktop")):
+                print("IDC Browser URL protocol is already registered.")
+                return
+
+            # Get the current directory
+            current_dir = os.path.dirname(os.path.realpath(__file__))
+            python_script_path = os.path.join(current_dir, 'resolver.py')
+
+            # Register IDC Browser URL protocol
+            with open(os.path.expanduser("~/.local/share/applications/idcbrowser.desktop"), "w") as f:
+                f.write(f"""[Desktop Entry]
+Name=IDC Browser
+Exec=python3 {python_script_path} %u
+Type=Application
+Terminal=false
+MimeType=x-scheme-handler/idcbrowser;
+""")
+
+            # Update MIME database
+            os.system("update-desktop-database ~/.local/share/applications/")
+            os.system("xdg-mime default idcbrowser.desktop x-scheme-handler/idcbrowser")
+        else:
+            print("IDC Browser URL protocol registration is not supported on this operating system.")
 
