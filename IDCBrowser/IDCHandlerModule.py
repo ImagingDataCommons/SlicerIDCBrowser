@@ -195,6 +195,34 @@ MimeType=x-scheme-handler/idcbrowser;
             # Update MIME database
             os.system("update-desktop-database ~/.local/share/applications/")
             os.system("xdg-mime default idcbrowser.desktop x-scheme-handler/idcbrowser")
+        
+        elif platform.system() == "Windows":
+            
+            # Get the directory of the current Python executable
+            python_dir = os.path.dirname(sys.executable)
+
+            # Construct the path to PythonSlicer.exe in the same directory
+            python_path = os.path.join(python_dir, "PythonSlicer.exe")
+
+            current_dir = os.path.dirname(os.path.realpath(__file__))
+            python_script_path = os.path.join(current_dir,'Resources', 'resolver.py')
+
+            # Register IDC Browser URL protocol in Windows Registry
+            import winreg as reg
+
+            try:
+                reg.CreateKey(reg.HKEY_CURRENT_USER, r"Software\Classes\idcbrowser")
+                with reg.OpenKey(reg.HKEY_CURRENT_USER, r"Software\Classes\idcbrowser", 0, reg.KEY_WRITE) as key:
+                    reg.SetValue(key, None, reg.REG_SZ, "URL:IDC Browser Protocol")
+                    reg.SetValueEx(key, "URL Protocol", 0, reg.REG_SZ, "")
+                    
+                reg.CreateKey(reg.HKEY_CURRENT_USER, r"Software\Classes\idcbrowser\shell\open\command")
+                with reg.OpenKey(reg.HKEY_CURRENT_USER, r"Software\Classes\idcbrowser\shell\open\command", 0, reg.KEY_WRITE) as key:
+                    reg.SetValue(key, None, reg.REG_SZ, f'"{python_path}" "{python_script_path}" "%1"')
+                    
+                print("IDC Browser URL protocol has been registered on Windows.")
+            except Exception as e:
+                print(f"Failed to register IDC Browser URL protocol on Windows: {e}")    
         else:
             print("IDC Browser URL protocol registration is not supported on this operating system.")
 
