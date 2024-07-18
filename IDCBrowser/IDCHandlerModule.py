@@ -226,7 +226,8 @@ MimeType=x-scheme-handler/idcbrowser;
                 print(f"Failed to register IDC Browser URL protocol on Windows: {e}")   
 
         elif platform.system() == "Darwin":  
-            grandparent_dir = os.path.dirname(os.path.dirname(slicer_dir))
+            slicer_exec_dir = os.path.dirname(sys.executable)
+            grandparent_dir = os.path.dirname(os.path.dirname(slicer_exec_dir))
             
             # Now, you can construct the path to PythonSlicer
             python_path = os.path.join(grandparent_dir, "bin", "PythonSlicer")
