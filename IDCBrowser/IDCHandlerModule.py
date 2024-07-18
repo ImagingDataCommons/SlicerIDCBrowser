@@ -227,10 +227,10 @@ MimeType=x-scheme-handler/idcbrowser;
 
         elif platform.system() == "Darwin":  
             slicer_exec_dir = os.path.dirname(sys.executable)
-            grandparent_dir = os.path.dirname(os.path.dirname(slicer_exec_dir))
+            parent_dir = os.path.dirname(slicer_exec_dir)
             
             # Now, you can construct the path to PythonSlicer
-            python_path = os.path.join(grandparent_dir, "bin", "PythonSlicer")
+            python_path = os.path.join(parent_dir, "bin", "PythonSlicer")
 
             current_dir = os.path.dirname(os.path.realpath(__file__))
             python_script_path = os.path.join(current_dir,'Resources', 'resolver.py') 
