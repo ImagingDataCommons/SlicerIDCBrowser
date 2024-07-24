@@ -18,6 +18,7 @@ import slicer
 import ctk
 from idc_index import index
 import sys
+import shlex
 
 class IDCRequestHandler(BaseRequestHandler):
 
@@ -230,10 +231,10 @@ MimeType=x-scheme-handler/idcbrowser;
             parent_dir = os.path.dirname(slicer_exec_dir)
             
             # Now, you can construct the path to PythonSlicer
-            python_path = os.path.join(parent_dir, "bin", "PythonSlicer")
+            python_path = shlex.quote(os.path.join(parent_dir, "bin", "PythonSlicer"))
 
             current_dir = os.path.dirname(os.path.realpath(__file__))
-            python_script_path = os.path.join(current_dir,'Resources', 'resolver.py') 
+            python_script_path = shlex.quote(os.path.join(current_dir,'Resources', 'resolver.py'))
 
             def check_macos_slicer_protocol_registration():
                 plist_path = os.path.expanduser("/Applications/slicer-app.app/Contents/Info.plist")
