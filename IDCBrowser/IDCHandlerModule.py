@@ -250,12 +250,10 @@ MimeType=x-scheme-handler/idcbrowser;
 
             # Construct the path to PythonSlicer.exe in the same directory
 
-            python_path = shlex.quote(os.path.join(python_dir, "PythonSlicer.exe"))
+            python_path = os.path.join(python_dir, "PythonSlicer.exe")
 
             current_dir = os.path.dirname(os.path.realpath(__file__))
-            python_script_path = shlex.quote(
-                os.path.join(current_dir, "Resources", "resolver.py")
-            )
+            python_script_path = os.path.join(current_dir, "Resources", "resolver.py")
 
             # Register IDC Browser URL protocol in Windows Registry
 
