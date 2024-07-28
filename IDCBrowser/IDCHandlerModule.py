@@ -4,7 +4,10 @@ import urllib.parse
 from slicer.ScriptedLoadableModule import *
 from WebServer import WebServerLogic
 from typing import Optional
-from WebServerLib.BaseRequestHandler import BaseRequestHandler, BaseRequestLoggingFunction
+from WebServerLib.BaseRequestHandler import (
+    BaseRequestHandler,
+    BaseRequestLoggingFunction,
+)
 
 import os
 import platform
@@ -20,6 +23,7 @@ from idc_index import index
 import sys
 import shlex
 
+
 class IDCRequestHandler(BaseRequestHandler):
 
     def __init__(self, logMessage: Optional[BaseRequestLoggingFunction] = None):
@@ -29,11 +33,13 @@ class IDCRequestHandler(BaseRequestHandler):
 
     def canHandleRequest(self, uri: bytes, **_kwargs) -> float:
         parsedURL = urllib.parse.urlparse(uri)
-        if (parsedURL.path.startswith(b"/idc")):
+        if parsedURL.path.startswith(b"/idc"):
             return 0.5
         return 0.0
 
-    def handleRequest(self, method: str, uri: bytes, requestBody: bytes, **_kwargs) -> tuple[bytes, bytes]:
+    def handleRequest(
+        self, method: str, uri: bytes, requestBody: bytes, **_kwargs
+    ) -> tuple[bytes, bytes]:
         parsedURL = urllib.parse.urlparse(uri)
         splitPath = parsedURL.path.split(b"/")
 
@@ -45,8 +51,10 @@ class IDCRequestHandler(BaseRequestHandler):
                 return self.handleDownload(series_uids)
             elif splitPath[2] == b"download" and splitPath[3] == b"studyInstanceUID":
                 study_uids = splitPath[4].decode().split(",")
-                filtered_df = self.index_df[self.index_df['StudyInstanceUID'].isin(study_uids)]
-                series_uids_from_study_uid = filtered_df['SeriesInstanceUID'].tolist()
+                filtered_df = self.index_df[
+                    self.index_df["StudyInstanceUID"].isin(study_uids)
+                ]
+                series_uids_from_study_uid = filtered_df["SeriesInstanceUID"].tolist()
                 return self.handleDownload(series_uids_from_study_uid)
             else:
                 return b"text/plain", b"Unhandled IDC request path"
@@ -63,14 +71,18 @@ class IDCRequestHandler(BaseRequestHandler):
             contentType = b"text/plain"
             if self.logMessage:
                 self.logMessage(responseBody.decode())
-
         return contentType, responseBody
 
     def handleDownload(self, uids: list[str]) -> tuple[bytes, bytes]:
         destFolderPath = slicer.mrmlScene.GetCacheManager().GetRemoteCacheDirectory()
 
         try:
-            self.client.download_from_selection(seriesInstanceUID=uids, downloadDir=destFolderPath, dirTemplate="%SeriesInstanceUID")
+            self.client.download_from_selection(
+                seriesInstanceUID=uids,
+                downloadDir=destFolderPath,
+                dirTemplate="%SeriesInstanceUID",
+                use_s5cmd_sync=True,
+            )
             indexer = ctk.ctkDICOMIndexer()
             for uid in uids:
                 download_folder_path = os.path.join(destFolderPath, uid)
@@ -83,16 +95,18 @@ class IDCRequestHandler(BaseRequestHandler):
                     volume = plugin.load(loadables[0])
                     logging.debug("Loaded volume: " + volume.GetName())
                 else:
-                    raise Exception("Unable to load DICOM content. Please retry from DICOM Browser!")
-
-                responseBody = f"Downloaded and indexed UID(s): {', '.join(uids)}".encode()
+                    raise Exception(
+                        "Unable to load DICOM content. Please retry from DICOM Browser!"
+                    )
+                responseBody = (
+                    f"Downloaded and indexed UID(s): {', '.join(uids)}".encode()
+                )
                 contentType = b"text/plain"
         except Exception as e:
             responseBody = f"Error downloading or indexing UID(s): {e}".encode()
             contentType = b"text/plain"
             if self.logMessage:
                 self.logMessage(responseBody.decode())
-
         return contentType, responseBody
 
 
@@ -101,9 +115,15 @@ class IDCHandlerModule(ScriptedLoadableModule):
         ScriptedLoadableModule.__init__(self, parent)
         self.parent.title = "IDC Handler Module"
         self.parent.categories = ["Examples"]
-        self.parent.contributors = ["Your Name (Your Organization)"]
+        self.parent.contributors = [
+            "Vamsi Thiriveedhi(ImagingDataCommons), Steve Pieper (Isomics, Inc.)"
+        ]
         self.parent.helpText = """This module registers an IDCRequestHandler to handle IDC-related requests."""
-        self.parent.acknowledgementText = """This module was developed by Your Name, Your Organization."""
+        self.parent.acknowledgementText = """This was a project born during PW 40 when @pieper once mentioned the idea of using Slicer just the way we use zoom. 
+This post (https://discourse.slicer.org/t/how-to-load-nifti-file-from-web-browser-link/18664/5) showed that it was indeed possible, and the current implementation
+is inspired from it, and the slicerio package, which was originally developed by @lassoan and team. 
+see https://github.com/ImagingDataCommons/SlicerIDCBrowser/pull/43 for more info.
+"""
 
         slicer.app.connect("startupCompleted()", self.onStartupCompleted)
 
@@ -115,22 +135,28 @@ class IDCHandlerModule(ScriptedLoadableModule):
             logic.stop()
         except NameError:
             pass
-
         logMessage = WebServerLogic.defaultLogMessage
         requestHandlers = [IDCRequestHandler()]
-        logic = WebServerLogic(port=PORT, logMessage=logMessage, enableSlicer=True, enableStaticPages=False, enableDICOM=True, requestHandlers=requestHandlers)
+        logic = WebServerLogic(
+            port=PORT,
+            logMessage=logMessage,
+            enableSlicer=True,
+            enableStaticPages=False,
+            enableDICOM=True,
+            requestHandlers=requestHandlers,
+        )
 
         logic.start()
         print("IDC Request Handler has been registered and server started.")
-        
+
         self.writeResolverScript()
         self.registerCustomProtocol()
 
     def writeResolverScript(self):
         current_dir = os.path.dirname(os.path.realpath(__file__))
-        resolver_script_path = os.path.join(current_dir,'Resources', 'resolver.py')
+        resolver_script_path = os.path.join(current_dir, "Resources", "resolver.py")
 
-        resolver_script_content = '''import sys
+        resolver_script_content = """import sys
 import urllib.parse
 import requests
 import webbrowser
@@ -167,98 +193,142 @@ if __name__ == "__main__":
 
     # Resolve the URL
     resolve_url(url)
-'''
+"""
 
-        with open(resolver_script_path, 'w') as f:
+        with open(resolver_script_path, "w") as f:
             f.write(resolver_script_content)
         print(f"Resolver script written to {resolver_script_path}")
 
     def registerCustomProtocol(self):
         if platform.system() == "Linux":
             # Check if the protocol is already registered
-            if os.path.exists(os.path.expanduser("~/.local/share/applications/idcbrowser.desktop")):
+
+            if os.path.exists(
+                os.path.expanduser("~/.local/share/applications/idcbrowser.desktop")
+            ):
                 print("IDC Browser URL protocol is already registered.")
                 return
-
             # Get the current directory
-            current_dir = os.path.dirname(os.path.realpath(__file__))
-            python_script_path = os.path.join(current_dir, 'resolver.py')
 
+            current_dir = os.path.dirname(os.path.realpath(__file__))
+            python_script_path = shlex.quote(
+                os.path.join(current_dir, "Resources", "resolver.py")
+            )
+
+            python_dir = slicer.app.slicerHome
+            normalized_python_dir = os.path.normpath(python_dir)
+
+            # Construct the path to PythonSlicer.exe in the same directory
+
+            python_path = shlex.quote(
+                os.path.join(normalized_python_dir, "bin", "PythonSlicer")
+            )
             # Register IDC Browser URL protocol
-            with open(os.path.expanduser("~/.local/share/applications/idcbrowser.desktop"), "w") as f:
-                f.write(f"""[Desktop Entry]
+
+            with open(
+                os.path.expanduser("~/.local/share/applications/idcbrowser.desktop"),
+                "w",
+            ) as f:
+                f.write(
+                    f"""[Desktop Entry]
 Name=IDC Browser
-Exec=python3 {python_script_path} %u
+Exec={python_path} {python_script_path} %u
 Type=Application
 Terminal=false
 MimeType=x-scheme-handler/idcbrowser;
-""")
-
+"""
+                )
             # Update MIME database
+
             os.system("update-desktop-database ~/.local/share/applications/")
             os.system("xdg-mime default idcbrowser.desktop x-scheme-handler/idcbrowser")
-        
         elif platform.system() == "Windows":
-            
+
             # Get the directory of the current Python executable
+
             python_dir = os.path.dirname(sys.executable)
 
             # Construct the path to PythonSlicer.exe in the same directory
-            python_path = os.path.join(python_dir, "PythonSlicer.exe")
+
+            python_path = shlex.quote(os.path.join(python_dir, "PythonSlicer.exe"))
 
             current_dir = os.path.dirname(os.path.realpath(__file__))
-            python_script_path = os.path.join(current_dir,'Resources', 'resolver.py')
+            python_script_path = shlex.quote(
+                os.path.join(current_dir, "Resources", "resolver.py")
+            )
 
             # Register IDC Browser URL protocol in Windows Registry
+
             import winreg as reg
 
             try:
                 reg.CreateKey(reg.HKEY_CURRENT_USER, r"Software\Classes\idcbrowser")
-                with reg.OpenKey(reg.HKEY_CURRENT_USER, r"Software\Classes\idcbrowser", 0, reg.KEY_WRITE) as key:
+                with reg.OpenKey(
+                    reg.HKEY_CURRENT_USER,
+                    r"Software\Classes\idcbrowser",
+                    0,
+                    reg.KEY_WRITE,
+                ) as key:
                     reg.SetValue(key, None, reg.REG_SZ, "URL:IDC Browser Protocol")
                     reg.SetValueEx(key, "URL Protocol", 0, reg.REG_SZ, "")
-                    
-                reg.CreateKey(reg.HKEY_CURRENT_USER, r"Software\Classes\idcbrowser\shell\open\command")
-                with reg.OpenKey(reg.HKEY_CURRENT_USER, r"Software\Classes\idcbrowser\shell\open\command", 0, reg.KEY_WRITE) as key:
-                    reg.SetValue(key, None, reg.REG_SZ, f'"{python_path}" "{python_script_path}" "%1"')
-                    
+                reg.CreateKey(
+                    reg.HKEY_CURRENT_USER,
+                    r"Software\Classes\idcbrowser\shell\open\command",
+                )
+                with reg.OpenKey(
+                    reg.HKEY_CURRENT_USER,
+                    r"Software\Classes\idcbrowser\shell\open\command",
+                    0,
+                    reg.KEY_WRITE,
+                ) as key:
+                    reg.SetValue(
+                        key,
+                        None,
+                        reg.REG_SZ,
+                        f'"{python_path}" "{python_script_path}" "%1"',
+                    )
                 print("IDC Browser URL protocol has been registered on Windows.")
             except Exception as e:
-                print(f"Failed to register IDC Browser URL protocol on Windows: {e}")   
-
-        elif platform.system() == "Darwin":  
+                print(f"Failed to register IDC Browser URL protocol on Windows: {e}")
+        elif platform.system() == "Darwin":
             slicer_exec_dir = os.path.dirname(sys.executable)
             parent_dir = os.path.dirname(slicer_exec_dir)
-            
+
             # Now, you can construct the path to PythonSlicer
+
             python_path = shlex.quote(os.path.join(parent_dir, "bin", "PythonSlicer"))
 
             current_dir = os.path.dirname(os.path.realpath(__file__))
-            python_script_path = shlex.quote(os.path.join(current_dir,'Resources', 'resolver.py'))
+            python_script_path = shlex.quote(
+                os.path.join(current_dir, "Resources", "resolver.py")
+            )
 
             def check_macos_slicer_protocol_registration():
-                plist_path = os.path.expanduser("/Applications/slicer-app.app/Contents/Info.plist")
+                plist_path = os.path.expanduser(
+                    "/Applications/slicer-app.app/Contents/Info.plist"
+                )
                 return os.path.exists(plist_path)
 
             if check_macos_slicer_protocol_registration():
                 print("Slicer URL protocol is already registered.")
                 return
-
             # Create the AppleScript
+
             applescript_path = os.path.expanduser("~/slicer.applescript")
             with open(applescript_path, "w") as applescript_file:
-                applescript_file.write(f"""
+                applescript_file.write(
+                    f"""
             on open location this_URL
                 do shell script "{python_path} {python_script_path} " & quoted form of this_URL
             end open location
-            """)
-
-
+            """
+                )
             # Compile the AppleScript into an app
+
             os.system(f"osacompile -o /Applications/slicer-app.app {applescript_path}")
 
-
             # Create or modify the plist file
+
             plist_content = """
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -328,11 +398,13 @@ MimeType=x-scheme-handler/idcbrowser;
         </plist>
         """
 
-            plist_path = os.path.expanduser("/Applications/slicer-app.app/Contents/Info.plist")
+            plist_path = os.path.expanduser(
+                "/Applications/slicer-app.app/Contents/Info.plist"
+            )
             with open(plist_path, "w") as plist_file:
                 plist_file.write(plist_content)
-
             print("Slicer URL protocol registered successfully.")
-
         else:
-            print("IDC Browser URL protocol registration is not supported on this operating system.")
+            print(
+                "IDC Browser URL protocol registration is not supported on this operating system."
+            )
