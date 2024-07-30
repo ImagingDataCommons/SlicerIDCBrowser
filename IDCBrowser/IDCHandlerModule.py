@@ -81,7 +81,6 @@ class IDCRequestHandler(BaseRequestHandler):
                 seriesInstanceUID=uids,
                 downloadDir=destFolderPath,
                 dirTemplate="%SeriesInstanceUID",
-                use_s5cmd_sync=True,
             )
             indexer = ctk.ctkDICOMIndexer()
             for uid in uids:
