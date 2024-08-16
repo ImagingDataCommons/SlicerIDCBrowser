@@ -263,8 +263,8 @@ MimeType=x-scheme-handler/idcbrowser;
                 print("Slicer URL protocol is already registered.")
                 return
             # Create the AppleScript
-
-            applescript_path = os.path.expanduser("~/slicer.applescript")
+            applescript_path = slicer.app.temporaryPath + "/slicer.applescript"
+            #applescript_path = os.path.expanduser("~/slicer.applescript")
             with open(applescript_path, "w") as applescript_file:
                 applescript_file.write(
                     f"""
