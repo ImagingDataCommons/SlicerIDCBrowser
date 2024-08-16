@@ -148,55 +148,8 @@ see https://github.com/ImagingDataCommons/SlicerIDCBrowser/pull/43 for more info
         logic.start()
         print("IDC Request Handler has been registered and server started.")
 
-        self.writeResolverScript()
         self.registerCustomProtocol()
 
-    def writeResolverScript(self):
-        current_dir = os.path.dirname(os.path.realpath(__file__))
-        resolver_script_path = os.path.join(current_dir, "Resources", "resolver.py")
-
-        resolver_script_content = """import sys
-import urllib.parse
-import requests
-import webbrowser
-
-def resolve_url(url):
-    # Parse the URL
-    parsed_url = urllib.parse.urlparse(url)
-
-    # Remove the scheme (idcbrowser://) from the URL and split the path
-    path_parts = parsed_url.netloc.split('/') + parsed_url.path.split('/')[1:]
-
-    # Check the first part of the path to determine the endpoint
-    if path_parts[0] == 'collections':
-        new_url = "http://localhost:2042/idc/collections"
-       # Open the new URL in a web browser
-        webbrowser.open(new_url)
-    elif path_parts[0] == 'series':
-        new_url = f"http://localhost:2042/idc/download/seriesInstanceUID/{path_parts[1]}"
-    elif path_parts[0] == 'studies':
-        new_url = f"http://localhost:2042/idc/download/studyInstanceUID/{path_parts[1]}"
-    else:
-        print(f"Unhandled path: {path_parts[0]}")
-        return
-
-    # Make the request to the new URL
-    response = requests.get(new_url)
-
-    # Print the response
-    print(response.text)
-
-if __name__ == "__main__":
-    # The URL is passed as the first argument
-    url = sys.argv[1]
-
-    # Resolve the URL
-    resolve_url(url)
-"""
-
-        with open(resolver_script_path, "w") as f:
-            f.write(resolver_script_content)
-        print(f"Resolver script written to {resolver_script_path}")
 
     def registerCustomProtocol(self):
         if platform.system() == "Linux":
@@ -302,7 +255,7 @@ MimeType=x-scheme-handler/idcbrowser;
 
             def check_macos_slicer_protocol_registration():
                 plist_path = os.path.expanduser(
-                    "/Applications/slicer-app.app/Contents/Info.plist"
+                    "~/Applications/slicer-app.app/Contents/Info.plist"
                 )
                 return os.path.exists(plist_path)
 
@@ -322,7 +275,7 @@ MimeType=x-scheme-handler/idcbrowser;
                 )
             # Compile the AppleScript into an app
 
-            os.system(f"osacompile -o /Applications/slicer-app.app {applescript_path}")
+            os.system(f"osacompile -o ~/Applications/slicer-app.app {applescript_path}")
 
             # Create or modify the plist file
 
@@ -396,7 +349,7 @@ MimeType=x-scheme-handler/idcbrowser;
         """
 
             plist_path = os.path.expanduser(
-                "/Applications/slicer-app.app/Contents/Info.plist"
+                "~/Applications/slicer-app.app/Contents/Info.plist"
             )
             with open(plist_path, "w") as plist_file:
                 plist_file.write(plist_content)
