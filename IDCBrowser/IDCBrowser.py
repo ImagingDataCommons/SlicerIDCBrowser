@@ -1436,7 +1436,11 @@ class IDCBrowserLogic(ScriptedLoadableModuleLogic):
 
       else:
         return
-        
+    
+    # upgrade to the latest version
+    # related to https://github.com/Slicer/Slicer/issues/7957
+    slicer.util._executePythonModule("pip",["install","--upgrade","idc-index"])
+
     from idc_index import index
     self.idc_index_location = index.__file__
     self.idc_version = index.IDCClient.get_idc_version()
