@@ -1432,14 +1432,14 @@ class IDCBrowserLogic(ScriptedLoadableModuleLogic):
         "The module requires idc-index python package, which will now be installed.\n",
         "SlicerIDCIndex initialization"
         ):
-        slicer.util.pip_install('idc-index>=0.3.2')
+        slicer.util.pip_install('idc-index>=0.7.0')
 
       else:
         return
     
     # upgrade to the latest version
     # related to https://github.com/Slicer/Slicer/issues/7957
-    slicer.util._executePythonModule("pip",["install","--upgrade","idc-index"])
+    slicer.util.pip_install("--upgrade idc-index")
 
     from idc_index import index
     self.idc_index_location = index.__file__
