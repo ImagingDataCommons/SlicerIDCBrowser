@@ -614,7 +614,13 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     import os
     if(os.path.exists(self.manifestSelector.currentPath)):
       self.download_status.setText('Downloading from manifest...')
-      self.IDCClient.download_from_manifest(self.manifestSelector.currentPath, self.downloadDestinationSelector.directory)
+      try:
+        self.IDCClient.download_from_manifest(self.manifestSelector.currentPath, self.downloadDestinationSelector.directory)
+      except Exception as error:
+        self.download_status.setText('Download from manifest failed.')
+        logging.error('Download from manifest failed.')
+        logging.error(error)
+        return
       self.download_status.setText('Download from manifest done.')
 
     if(self.patientIDSelector.text != ''):
@@ -625,7 +631,13 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
         FROM index
         WHERE PatientID = '""" + self.patientIDSelector.text + """'
       """
-      self.downloadFromQuery(query, self.downloadDestinationSelector.directory)
+      try:
+        self.downloadFromQuery(query, self.downloadDestinationSelector.directory)
+      except Exception as error:
+        self.download_status.setText('Download from PatientID failed.')
+        logging.error('Download from PatientID failed.')
+        logging.error(error)
+        return
       self.download_status.setText('Download from PatientID done.')
 
     if(self.studyUIDSelector.text != ''):
@@ -636,7 +648,13 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
         FROM index
         WHERE StudyInstanceUID = '""" + self.studyUIDSelector.text + """'
       """
-      self.downloadFromQuery(query, self.downloadDestinationSelector.directory)
+      try:
+        self.downloadFromQuery(query, self.downloadDestinationSelector.directory)
+      except Exception as error:
+        self.download_status.setText('Download from StudyInstanceUID failed.')
+        logging.error('Download from StudyInstanceUID failed.')
+        logging.error(error)
+        return
       self.download_status.setText('Download from StudyInstanceUID done.')
 
     if(self.seriesUIDSelector.text != ''):
@@ -647,7 +665,13 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
         FROM index
         WHERE SeriesInstanceUID = '""" + self.seriesUIDSelector.text + """'
       """
-      self.downloadFromQuery(query, self.downloadDestinationSelector.directory)
+      try:
+        self.downloadFromQuery(query, self.downloadDestinationSelector.directory)
+      except Exception as error:
+        self.download_status.setText('Download from SeriesInstanceUID failed.')
+        logging.error('Download from SeriesInstanceUID failed.')
+        logging.error(error)
+        return
       self.download_status.setText('Download from SeriesInstanceUID done.')
 
     self.download_status.setText('Download status: Done in {0:.2f} seconds.'.format(time.time() - startTime))
