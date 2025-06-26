@@ -126,7 +126,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     else:
       logging.info('DICOM database is available at '+slicer.dicomDatabase.databaseFilename)
       slicer.dicomDatabase.updateSchemaIfNeeded()
-    
+
     databaseDirectory = slicer.dicomDatabase.databaseDirectory
     self.storagePath = self.settings.value("IDCCustomStoragePath")  if self.settings.contains("IDCCustomStoragePath") else databaseDirectory + "/IDCLocal/"
     logging.debug("IDC downloaded data storage path: " + self.storagePath)
@@ -236,6 +236,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.showBrowserButton = qt.QPushButton("Show Browser")
     # self.showBrowserButton.toolTip = "."
     self.showBrowserButton.enabled = False
+    self.showBrowserButton.checkable = True
     browserLayout.addWidget(self.showBrowserButton)
 
     # Browser Widget Layout within the collapsible button
@@ -255,7 +256,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     downloaderLayout = qt.QGridLayout(downloaderCollapsibleButton)
 
     comment = qt.QTextEdit()
-    
+
     # Add hyperlink
     comment.append("You can use this section of the module to download data from Imaging Data Commons based on your selection in <a href=\"http://imaging.datacommons.cancer.gov\">IDC Portal</a>. Populate any of the fields below to download data based on your selection: download manifest created using IDC Portal, or PatientID, StudyInstanceUID or SeriesInstanceUID.<br>")
     comment.setReadOnly(True)
@@ -328,16 +329,16 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
     self.importOnDownloadAction = qt.QAction("Import downloaded files to DICOM database", downloadButtonMenu)
     self.importOnDownloadAction.setToolTip("If enabled, all downloaded files are imported into the DICOM database.")
-    self.importOnDownloadAction.setCheckable(True)  
+    self.importOnDownloadAction.setCheckable(True)
     self.importOnDownloadAction.setChecked(True)
-    downloadButtonMenu.addAction(self.importOnDownloadAction)  
+    downloadButtonMenu.addAction(self.importOnDownloadAction)
 
-    
+
     self.loadOnDownloadAction = qt.QAction("Open downloaded series", downloadButtonMenu)
     self.loadOnDownloadAction.setToolTip("If enabled, all downloaded files are imported into the DICOM database and loaded into the scene.")
-    self.loadOnDownloadAction.setCheckable(False)  
+    self.loadOnDownloadAction.setCheckable(False)
     self.loadOnDownloadAction.setChecked(False)
-    #downloadButtonMenu.addAction(self.loadOnDownloadAction)  
+    #downloadButtonMenu.addAction(self.loadOnDownloadAction)
     self.onDownloadOptionsToggled(False)
 
     downloaderLayout.addWidget(self.downloadButton, 7,0,1,3)
@@ -356,9 +357,9 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     logoLabelText = "IDC release "+self.logic.idc_version
     self.logoLabel = qt.QLabel(logoLabelText)
     collectionsFormLayout.addWidget(self.logoLabel)
-    
+
     #Patient Table Widget
-    
+
     self.patientsCollapsibleGroupBox = ctk.ctkCollapsibleGroupBox()
     self.patientsCollapsibleGroupBox.setTitle('Patients')
     browserWidgetLayout.addWidget(self.patientsCollapsibleGroupBox)
@@ -535,7 +536,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.statusLabel = qt.QLabel('')
     statusHBoxLayout.addWidget(self.statusLabel)
     statusHBoxLayout.addStretch(1)
-  
+
     #
     # delete data context menu
     #
@@ -590,6 +591,35 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
     self.loadOnDownloadAction.connect('toggled(bool)', self.onDownloadOptionsToggled)
     self.importOnDownloadAction.connect('toggled(bool)', self.onDownloadOptionsToggled)
+
+    # This variable is set to true if we temporarily
+    # hide the data probe (and so we need to restore its visibility).
+    self.dataProbeHasBeenTemporarilyHidden = False
+
+    # Setup the browser widget layout
+    layoutManager = slicer.app.layoutManager()
+
+    self.currentViewArrangement = 0
+    self.previousViewArrangement = 0
+    self.IDCBrowserLayout = slicer.vtkMRMLLayoutNode.SlicerLayoutUserView + 53
+    self.viewFactory = slicer.qSlicerSingletonViewFactory()
+    self.viewFactory.setTagName("idcbrowser")
+    if layoutManager:
+      layoutManager.registerViewFactory(self.viewFactory)
+      layoutManager.layoutChanged.connect(self.onLayoutChanged)
+      layout = (
+          '<layout type="horizontal">'
+          " <item>"
+          "  <idcbrowser></idcbrowser>"
+          " </item>"
+          "</layout>"
+      )
+      layoutNode = layoutManager.layoutLogic().GetLayoutNode()
+      layoutNode.AddLayoutDescription(self.IDCBrowserLayout, layout)
+      self.currentViewArrangement = layoutNode.GetViewArrangement()
+      self.previousViewArrangement = layoutNode.GetViewArrangement()
+
+    self.viewFactory.setWidget(self.browserWidget)
 
     # Add vertical spacer
     self.layout.addStretch(1)
@@ -657,6 +687,40 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
     self.updateUpgradeRequiredWidget()
 
+  def onLayoutChanged(self, viewArrangement):
+      self.showBrowserButton.checked = viewArrangement == self.IDCBrowserLayout
+      if viewArrangement == self.currentViewArrangement:
+          return
+
+      if (self.currentViewArrangement != slicer.vtkMRMLLayoutNode.SlicerLayoutNone
+          and self.currentViewArrangement != self.IDCBrowserLayout):
+          self.previousViewArrangement = self.currentViewArrangement
+      self.currentViewArrangement = viewArrangement
+
+      if self.browserWidget is None:
+        return
+
+      mw = slicer.util.mainWindow()
+      dataProbe = mw.findChild("QWidget", "DataProbeCollapsibleWidget") if mw else None
+      if self.currentViewArrangement == self.IDCBrowserLayout:
+          # View has been changed to the IDC browser view
+          # If we are in IDC browser module, hide the Data Probe to have more space for the module
+          try:
+              inIDCBrowserModule = slicer.modules.idcbrowser.widgetRepresentation().isEntered
+          except AttributeError:
+              # Slicer is shutting down
+              inIDCBrowserModule = False
+          if inIDCBrowserModule and dataProbe and dataProbe.isVisible():
+              dataProbe.setVisible(False)
+              self.dataProbeHasBeenTemporarilyHidden = True
+      else:
+          # View has been changed from the IDC browser view
+          if self.dataProbeHasBeenTemporarilyHidden:
+              # DataProbe was temporarily hidden, restore its visibility now
+              dataProbe.setVisible(True)
+              self.dataProbeHasBeenTemporarilyHidden = False
+
+
   def cleanup(self):
     pass
 
@@ -674,7 +738,10 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.downloadButton.text = buttonLabel
 
   def onShowBrowserButton(self):
-    self.showBrowser()
+    if self.showBrowserButton.checked:
+      self.showBrowser()
+    else:
+      self.closeBrowser()
 
   # TODO: goes to logic
   def downloadFromQuery(self, query, downloadDestination):
@@ -769,7 +836,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
       self.logic.loadData(self.downloadDestinationSelector.directory)
       self.download_status.setText('Loading downloaded data into scene done.')
       logging.info('Loading downloaded data into scene done.')
- 
+
   def onUseCacheStateChanged(self, state):
     if state == 0:
       self.useCacheFlag = False
@@ -798,22 +865,21 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.studiesTableSelectionChanged()
 
   def showBrowser(self):
-    if not self.browserWidget.isVisible():
-      self.popupPositioned = False
-      self.browserWidget.show()
-      if self.popupGeometry.isValid():
-        self.browserWidget.setGeometry(self.popupGeometry)
-    self.browserWidget.raise_()
+    slicer.app.layoutManager().setLayout(self.IDCBrowserLayout)
 
-    if not self.popupPositioned:
-      mainWindow = slicer.util.mainWindow()
-      if mainWindow is None:
-        return
-      screenMainPos = mainWindow.pos
-      x = screenMainPos.x() + 100
-      y = screenMainPos.y() + 100
-      self.browserWidget.move(qt.QPoint(x, y))
-      self.popupPositioned = True
+  def closeBrowser(self):
+    if (self.currentViewArrangement != self.IDCBrowserLayout
+        and self.currentViewArrangement != slicer.vtkMRMLLayoutNode.SlicerLayoutNone):
+      # current layout is a valid layout that is not the IDC browser view, so nothing to do
+      return
+
+    # Use a default layout if this layout is not valid
+    layoutId = self.previousViewArrangement
+    if (layoutId == slicer.vtkMRMLLayoutNode.SlicerLayoutNone
+        or layoutId == self.IDCBrowserLayout):
+      layoutId = qt.QSettings().value("MainWindow/layout", slicer.vtkMRMLLayoutNode.SlicerLayoutInitialView)
+
+    slicer.app.layoutManager().setLayout(layoutId)
 
   def showStatus(self, message, waitMessage='Waiting for IDC server .... '):
     self.statusLabel.text = waitMessage + message
@@ -853,6 +919,12 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
                   'SlicerIDCBrowser', message, qt.QMessageBox.Ok)
     self.showBrowserButton.enabled = True
     self.showBrowser()
+
+  def enter(self):
+    self.showBrowser()
+
+  def exit(self):
+    self.closeBrowser()
 
   def onStudiesSelectAllButton(self):
     self.studiesTableWidget.selectAll()
@@ -1165,7 +1237,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
                     'SlicerIDCBrowser', message, qt.QMessageBox.Ok)
 
   def downloadSelectedSeries(self):
-    
+
     while self.downloadQueue and not self.cancelDownload:
       self.cancelDownloadButton.enabled = True
       selectedSeries, downloadFolderPath = self.downloadQueue.popitem()
@@ -1195,7 +1267,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
           logging.debug("Added files to database in %s seconds" % (time.time() - start_time))
           self.previouslyDownloadedSeries.append(selectedSeries)
           '''
-          #          
+          #
           with open(self.downloadedSeriesArchiveFile, 'wb') as f:
             pickle.dump(self.previouslyDownloadedSeries, f)
           f.close()
@@ -1311,7 +1383,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
   def getSeriesSize(self, seriesInstanceUID):
     size = self.IDCClient.get_series_size(seriesInstanceUID)
     return size
-  
+
   def populateCollectionsTreeView(self, responseString):
       collectionNames = sorted(responseString)
 
@@ -1538,7 +1610,7 @@ class IDCBrowserLogic(ScriptedLoadableModuleLogic):
       errorMessage = f"Failed to {'install' if needToInstall else 'update'} idc-index."
       if needToInstall:
         userMessage = "The module requires idc-index python package, which will now be installed."
-  
+
       if slicer.util.confirmOkCancelDisplay(userMessage, "SlicerIDCIndex initialization"):
         with slicer.util.displayPythonShell() as shell, slicer.util.tryWithErrorDisplay(message=errorMessage, waitCursor=True) as errorDisplay:
           slicer.util.pip_install(f"{'--upgrade ' if update else ''}idc-index>=0.7.0")
