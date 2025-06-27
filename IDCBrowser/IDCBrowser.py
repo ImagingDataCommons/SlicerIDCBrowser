@@ -9,6 +9,7 @@ import logging
 import os.path
 import pickle
 import string
+import sys
 import time
 import unittest
 import webbrowser
@@ -59,6 +60,9 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     """
     ScriptedLoadableModuleWidget.setup(self)
 
+    # Load settings from the system
+    self.settings = qt.QSettings()
+
     self.loadToScene = False
 
     # This module is often used in developer mode, therefore
@@ -70,7 +74,9 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
 
     logging.info("Checking requirements ...")
-    self.logic.setupPythonRequirements()
+    update = slicer.util.settingsValue("IDCBrowser/PipUpdateRequested", False, converter=slicer.util.toBool)
+    if self.logic.setupPythonRequirements(update):
+      self.settings.setValue("IDCBrowser/PipUpdateRequested", False)
 
     from idc_index import index
 
@@ -106,9 +112,6 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.downloadProgressBarWidgets = []
 
     item = qt.QStandardItem()
-
-    # Load settings from the system
-    self.settings = qt.QSettings()
 
     # Put the files downloaded from IDC in the DICOM database folder by default.
     # This makes downloaded files relocatable along with the DICOM database in
@@ -189,6 +192,24 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.reloadAndTestButton.toolTip = "Reload this module and then run the self tests."
     reloadFormLayout.addWidget(self.reloadAndTestButton)
     self.reloadAndTestButton.connect('clicked()', self.onReloadAndTest)
+
+    #
+    # Update required area
+    #
+    self.updateRequiredWidget = qt.QWidget()
+    self.updateRequiredWidget.setLayout(qt.QGridLayout())
+    self.layout.addWidget(self.updateRequiredWidget)
+
+    self.updateRequiredLabel = qt.QLabel("Required Python libraries are outdated. Please restart Slicer to update them.")
+    self.updateRequiredWidget.layout().addWidget(self.updateRequiredLabel, 0, 0, 1, 2)
+
+    self.updateAndRestartButton = qt.QPushButton("Restart")
+    self.updateAndRestartButton.toolTip = "Update required Python libraries and restart Slicer."
+    self.updateAndRestartButton.connect('clicked(bool)', slicer.util.restart)
+    self.updateRequiredWidget.layout().addWidget(self.updateAndRestartButton, 1, 1)
+
+    self.updateRequiredWidget.setStyleSheet("background-color: #fffacd; color: black;")
+    self.updateUpgradeRequiredWidget()
 
     #
     # Browser Area
@@ -577,6 +598,64 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
       self.showBrowser()
     if not self.initialConnection:
       self.getCollectionValues()
+
+    self.startPythonRequirementsCheck()
+
+  def updateUpgradeRequiredWidget(self):
+    """
+    Update the GUI elements to reflect the current state of the module.
+    """
+    if slicer.util.settingsValue("IDCBrowser/PipUpdateRequested", False, converter=slicer.util.toBool):
+      self.updateRequiredWidget.show()
+    else:
+      self.updateRequiredWidget.hide()
+
+  def startPythonRequirementsCheck(self):
+    """
+    Rather than hanging the GUI to check if any of the libraries need to be updated,
+    we will launch a separate process to check for outdated libraries.
+    """
+    pythonSlicerExecutablePath = os.path.dirname(sys.executable) + "/PythonSlicer"
+    if os.name == "nt":
+      pythonSlicerExecutablePath += ".exe"
+
+    commandLine = [pythonSlicerExecutablePath, "-m", "pip", "list", "--outdated"]
+    self.pipOutdatedLibrariesProc = slicer.util.launchConsoleProcess(commandLine, useStartupEnvironment=False)
+
+    # Check the status/result of the pip list --outdated call every 1 second. Until it is completed.
+    self.pythonRequirementsCheckTimer = qt.QTimer()
+    self.pythonRequirementsCheckTimer.setInterval(1000)
+    self.pythonRequirementsCheckTimer.connect('timeout()', self.onPythonRequirementsCheckTimeout)
+    self.pythonRequirementsCheckTimer.setSingleShot(False)
+    self.pythonRequirementsCheckTimer.start()
+
+  def onPythonRequirementsCheckTimeout(self):
+    """
+    Check if the pip outdated libraries process has finished.
+    If it has, read the output and check if required libraries are listed as outdated.
+    """
+    returnCode = self.pipOutdatedLibrariesProc.poll()
+    if returnCode is None:
+      # Process is still running
+      return
+
+    outdatedLibrariesOutput = self.pipOutdatedLibrariesProc.stdout.read()
+    self.pythonRequirementsCheckTimer.stop()
+
+    requiredLibraries = [
+      "idc-index"
+    ]
+
+    outdatedLibraries = []
+    for requiredLibrary in requiredLibraries:
+      if requiredLibrary in outdatedLibrariesOutput:
+        outdatedLibraries.append(requiredLibrary)
+
+    if len(outdatedLibraries) > 0:
+      logging.info(f"Required libraries are outdated: {outdatedLibraries}, updating on restart")
+      self.settings.setValue("IDCBrowser/PipUpdateRequested", True)
+
+    self.updateUpgradeRequiredWidget()
 
   def cleanup(self):
     pass
@@ -1444,30 +1523,34 @@ class IDCBrowserLogic(ScriptedLoadableModuleLogic):
     self.idc_version = None
     pass
 
-  def setupPythonRequirements(self):
+  def setupPythonRequirements(self, update=False):
     import importlib.metadata
     import importlib.util
-    #import packaging
-
+    needToInstall = False
     try:
         import idc_index
     except ModuleNotFoundError as e:
-      if slicer.util.confirmOkCancelDisplay(
-        "The module requires idc-index python package, which will now be installed.\n",
-        "SlicerIDCIndex initialization"
-        ):
-        slicer.util.pip_install('idc-index>=0.7.0')
+      needToInstall=True
 
-      else:
-        return
-    
-    # upgrade to the latest version
-    # related to https://github.com/Slicer/Slicer/issues/7957
-    slicer.util.pip_install("--upgrade idc-index")
+    installed = False
+    if needToInstall or update:
+      userMessage = "The current idc-index python package is out of date, and will now be updated."
+      errorMessage = f"Failed to {'install' if needToInstall else 'update'} idc-index."
+      if needToInstall:
+        userMessage = "The module requires idc-index python package, which will now be installed."
+  
+      if slicer.util.confirmOkCancelDisplay(userMessage, "SlicerIDCIndex initialization"):
+        with slicer.util.displayPythonShell() as shell, slicer.util.tryWithErrorDisplay(message=errorMessage, waitCursor=True) as errorDisplay:
+          slicer.util.pip_install(f"{'--upgrade ' if update else ''}idc-index>=0.7.0")
+          installed = True
+    else:
+      installed = True
 
-    from idc_index import index
-    self.idc_index_location = index.__file__
-    self.idc_version = index.IDCClient.get_idc_version()
+    if installed or not needToInstall:
+      from idc_index import index
+      self.idc_index_location = index.__file__
+      self.idc_version = index.IDCClient.get_idc_version()
+    return installed
 
   def hasImageData(self, volumeNode):
     """This is a dummy logic method that
