@@ -16,6 +16,8 @@ import webbrowser
 import xml.etree.ElementTree as ET
 import zipfile
 from random import randint
+import tempfile
+import pandas as pd
 
 # Third-party imports
 import pydicom
@@ -1151,8 +1153,8 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.cancelDownload = True
     for series in self.downloadQueue.keys():
       self.removeDownloadProgressBar(series)
-    downloadQueue = {}
-    seriesRowNumber = {}
+    self.downloadQueue = {}
+    self.seriesRowNumber = {}
 
   def addFilesToDatabase(self, directory=None):
     self.progressMessage = "Adding Files to DICOM Database "
@@ -1161,9 +1163,10 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     indexer = ctk.ctkDICOMIndexer()
     # DICOM indexer uses the current DICOM database folder as the basis for relative paths,
     # therefore we must convert the folder path to absolute to ensure this code works
-    # even when a relative path is used as self.extractedFilesDirectory.
+    # even when a relative path is used as self.extractedFilesDirectories.
     if not directory:
-      indexer.addDirectory(slicer.dicomDatabase, os.path.abspath(self.extractedFilesDirectory))
+      for extractedFilesDirectory in self.extractedFilesDirectories:
+        indexer.addDirectory(slicer.dicomDatabase, os.path.abspath(extractedFilesDirectory))
     else:
       indexer.addDirectory(slicer.dicomDatabase, os.path.abspath(directory))
     indexer.waitForImportFinished()
@@ -1172,7 +1175,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
   def addSelectedToDownloadQueue(self):
     self.cancelDownload = False
     allSelectedSeriesUIDs = []
-    downloadQueue = {}
+    self.downloadQueue = {}
     self.seriesRowNumber = {}
 
     for n in range(len(self.seriesInstanceUIDs)):
@@ -1238,59 +1241,76 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
   def downloadSelectedSeries(self):
 
-    while self.downloadQueue and not self.cancelDownload:
-      self.cancelDownloadButton.enabled = True
-      selectedSeries, downloadFolderPath = self.downloadQueue.popitem()
+    if len(self.downloadQueue) == 0:
+      logging.debug("No series selected for download")
+      return
+
+    self.extractedFilesDirectories = set()
+
+    downloadQueueData = { 'SeriesInstanceUID': self.downloadQueue.keys(),
+             'DownloadFolder': self.downloadQueue.values() }
+    manifest_df = pd.DataFrame.from_dict(downloadQueueData)
+    manifest_df = manifest_df.merge(self.IDCClient.index, on='SeriesInstanceUID', how='left')
+    manifestContents = "\n".join(
+      f"cp {url} {folder}"
+      for url, folder in zip(manifest_df["series_aws_url"], manifest_df["DownloadFolder"])
+      )
+
+    self.cancelDownloadButton.enabled = True
+
+    self.extractedFilesDirectories.update(manifest_df["DownloadFolder"].tolist())
+    for downloadFolderPath in self.extractedFilesDirectories:
       if not os.path.exists(downloadFolderPath):
         logging.debug("Creating directory to keep the downloads: " + downloadFolderPath)
         os.makedirs(downloadFolderPath)
-      # save series uid in a text file for further reference
-      with open(downloadFolderPath + 'seriesUID.txt', 'w') as f:
-        f.write(selectedSeries)
-        f.close()
-      fileName = downloadFolderPath + 'images.zip'
-      logging.debug("Downloading images to " + fileName)
-      self.extractedFilesDirectory = downloadFolderPath
-      self.progressMessage = "Downloading Images for series InstanceUID: " + selectedSeries
-      self.showStatus(self.progressMessage)
-      #seriesSize = self.getSeriesSize(selectedSeries)
-      logging.debug(self.progressMessage)
+
+    self.progressMessage = "Downloading Images for selected series"
+    self.showStatus(self.progressMessage)
+    logging.debug(self.progressMessage)
+
+    try:
+      start_time = time.time()
+
+      # write manifest to a temporary file
+      manifest_file = tempfile.NamedTemporaryFile(delete=False, mode='w')
+      manifest_file.write(manifestContents)
+      manifest_file.close()
+      logging.debug("Manifest file created: " + manifest_file.name)
+      self.IDCClient.download_from_manifest(manifestFile=manifest_file.name, downloadDir=self.storagePath)
+      os.remove(manifest_file.name)
+      slicer.app.processEvents()
+      logging.debug("Downloaded images in %s seconds" % (time.time() - start_time))
+
       try:
         start_time = time.time()
-        response = self.IDCClient.download_dicom_series(seriesInstanceUID=selectedSeries, downloadDir=self.extractedFilesDirectory)
-        slicer.app.processEvents()
-        logging.debug("Downloaded images in %s seconds" % (time.time() - start_time))
+        for directory in self.extractedFilesDirectories:
+          self.addFilesToDatabase(directory)
+        logging.debug("Added files to database in %s seconds" % (time.time() - start_time))
 
-        try:
-          start_time = time.time()
-          self.addFilesToDatabase()
-          logging.debug("Added files to database in %s seconds" % (time.time() - start_time))
+        for selectedSeries in self.downloadQueue.keys():
           self.previouslyDownloadedSeries.append(selectedSeries)
-          '''
-          #
-          with open(self.downloadedSeriesArchiveFile, 'wb') as f:
-            pickle.dump(self.previouslyDownloadedSeries, f)
-          f.close()
-          '''
           n = self.seriesRowNumber[selectedSeries]
           table = self.seriesTableWidget
           item = table.item(n, 1)
           item.setIcon(self.storedlIcon)
-        except Exception as error:
-          import traceback
-          traceback.print_exc()
-          logging.error("Failed to add images to the database!")
-          self.removeDownloadProgressBar(selectedSeries)
-          self.downloadQueue.pop(selectedSeries, None)
-
 
       except Exception as error:
         import traceback
         traceback.print_exc()
-        self.clearStatus()
-        message = "downloadSelectedSeries: Failed to download " + str(error)
-        qt.QMessageBox.critical(slicer.util.mainWindow(),
-                    'SlicerIDCBrowser', message, qt.QMessageBox.Ok)
+        logging.error("Failed to add images to the database!")
+
+        for selectedSeries in self.downloadQueue.keys():
+          self.removeDownloadProgressBar(selectedSeries)
+
+    except Exception as error:
+      import traceback
+      traceback.print_exc()
+      self.clearStatus()
+      message = "downloadSelectedSeries: Failed to download " + str(error)
+      qt.QMessageBox.critical(slicer.util.mainWindow(),
+                  'SlicerIDCBrowser', message, qt.QMessageBox.Ok)
+
+    self.downloadQueue = {}
     self.cancelDownloadButton.enabled = False
     self.collectionSelector.enabled = True
     self.patientsTableWidget.enabled = True
