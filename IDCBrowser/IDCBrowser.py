@@ -18,6 +18,7 @@ import zipfile
 from random import randint
 import tempfile
 import pandas as pd
+import inspect
 
 # Third-party imports
 import pydicom
@@ -103,7 +104,6 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.initialConnection = False
     self.seriesTableRowCount = 0
     self.studiesTableRowCount = 0
-    self.downloadProgressBars = {}
     self.downloadProgressLabels = {}
     self.selectedSeriesNicknamesDic = {}
     self.downloadQueue = {}
@@ -547,6 +547,10 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.seriesTableWidget.addAction(self.removeSeriesAction)
     # self.removeSeriesAction.enabled = False
 
+    # Download progress bar
+    self.downloadProgressBar = qt.QProgressBar()
+    self.layout.addWidget(self.downloadProgressBar)
+
     #
     # Settings Area
     #
@@ -752,7 +756,14 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     manifest_df = self.IDCClient.sql_query(query)
     manifest_df.to_csv(manifest_path, index=False, header=False)
     logging.info("Will download to "+downloadDestination)
-    self.IDCClient.download_from_manifest(manifest_path, downloadDestination)
+    try:
+      self.showProgressBar()
+      if 'progress_callback' in inspect.signature(self.IDCClient.download_from_manifest).parameters:
+        self.IDCClient.download_from_manifest(manifest_path, downloadDestination, progress_callback=self.updateProgressBar)
+      else:
+        self.IDCClient.download_from_manifest(manifest_path, downloadDestination)
+    finally:
+      self.hideProgressBar()
 
   def onDownloadButton(self):
 
@@ -763,12 +774,18 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     if(os.path.exists(self.manifestSelector.currentPath)):
       self.download_status.setText('Downloading from manifest...')
       try:
-        self.IDCClient.download_from_manifest(self.manifestSelector.currentPath, self.downloadDestinationSelector.directory)
+        self.showProgressBar()
+        if 'progress_callback' in inspect.signature(self.IDCClient.download_from_manifest).parameters:
+          self.IDCClient.download_from_manifest(self.manifestSelector.currentPath, self.downloadDestinationSelector.directory, progress_callback=self.updateProgressBar)
+        else:
+          self.IDCClient.download_from_manifest(self.manifestSelector.currentPath, self.downloadDestinationSelector.directory)
       except Exception as error:
         self.download_status.setText('Download from manifest failed.')
         logging.error('Download from manifest failed.')
         logging.error(error)
         return
+      finally:
+        self.hideProgressBar()
       self.download_status.setText('Download from manifest done.')
 
     if(self.patientIDSelector.text != ''):
@@ -1151,10 +1168,16 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
   def onCancelDownloadButton(self):
     self.cancelDownload = True
-    for series in self.downloadQueue.keys():
-      self.removeDownloadProgressBar(series)
     self.downloadQueue = {}
     self.seriesRowNumber = {}
+    self.hideProgressBar()
+
+  def hideProgressBar(self):
+    self.downloadProgressBar.hide()
+    self.downloadProgressBar.setValue(0)
+
+  def showProgressBar(self):
+    self.downloadProgressBar.show()
 
   def addFilesToDatabase(self, directory=None):
     self.progressMessage = "Adding Files to DICOM Database "
@@ -1179,7 +1202,6 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.seriesRowNumber = {}
 
     for n in range(len(self.seriesInstanceUIDs)):
-      # print self.seriesInstanceUIDs[n]
       if self.seriesInstanceUIDs[n].isSelected():
         selectedCollection = self.selectedCollection
         selectedPatient = self.selectedPatient
@@ -1192,11 +1214,9 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
           self.selectedStudyRow + 1) + '-' + str(n + 1)
 
         # create download queue
-        #if not any(selectedSeries == s for s in self.previouslyDownloadedSeries):
-        if True:
-          self.makeDownloadProgressBar(selectedSeries, n)
-          self.downloadQueue[selectedSeries] = self.storagePath
-          self.seriesRowNumber[selectedSeries] = n
+        self.showProgressBar()
+        self.downloadQueue[selectedSeries] = self.storagePath
+        self.seriesRowNumber[selectedSeries] = n
 
     self.seriesTableWidget.clearSelection()
     self.patientsTableWidget.enabled = False
@@ -1276,7 +1296,12 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
       manifest_file.write(manifestContents)
       manifest_file.close()
       logging.debug("Manifest file created: " + manifest_file.name)
-      self.IDCClient.download_from_manifest(manifestFile=manifest_file.name, downloadDir=self.storagePath)
+
+      if 'progress_callback' in inspect.signature(self.IDCClient.download_from_manifest).parameters:
+        self.IDCClient.download_from_manifest(manifestFile=manifest_file.name, downloadDir=self.storagePath, progress_callback=self.updateProgressBar)
+      else:
+        self.IDCClient.download_from_manifest(manifestFile=manifest_file.name, downloadDir=self.storagePath)
+
       os.remove(manifest_file.name)
       slicer.app.processEvents()
       logging.debug("Downloaded images in %s seconds" % (time.time() - start_time))
@@ -1299,9 +1324,6 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
         traceback.print_exc()
         logging.error("Failed to add images to the database!")
 
-        for selectedSeries in self.downloadQueue.keys():
-          self.removeDownloadProgressBar(selectedSeries)
-
     except Exception as error:
       import traceback
       traceback.print_exc()
@@ -1310,73 +1332,30 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
       qt.QMessageBox.critical(slicer.util.mainWindow(),
                   'SlicerIDCBrowser', message, qt.QMessageBox.Ok)
 
+    finally:
+      self.hideProgressBar()
+
     self.downloadQueue = {}
     self.cancelDownloadButton.enabled = False
     self.collectionSelector.enabled = True
     self.patientsTableWidget.enabled = True
     self.studiesTableWidget.enabled = True
 
-  def makeDownloadProgressBar(self, selectedSeries, n):
-    downloadProgressBar = qt.QProgressBar()
-    self.downloadProgressBars[selectedSeries] = downloadProgressBar
-    titleLabel = qt.QLabel(selectedSeries)
-    progressLabel = qt.QLabel(self.selectedSeriesNicknamesDic[selectedSeries] + ' (0 KB)')
-    self.downloadProgressLabels[selectedSeries] = progressLabel
-    table = self.seriesTableWidget
-    table.setCellWidget(n, 1, downloadProgressBar)
-    # self.downloadFormLayout.addRow(progressLabel,downloadProgressBar)
-
-  def removeDownloadProgressBar(self, selectedSeries):
-    n = self.seriesRowNumber[selectedSeries]
-    table = self.seriesTableWidget
-    table.setCellWidget(n, 1, None)
-    self.downloadProgressBars[selectedSeries].deleteLater()
-    del self.downloadProgressBars[selectedSeries]
-    self.downloadProgressLabels[selectedSeries].deleteLater()
-    del self.downloadProgressLabels[selectedSeries]
-
   def stringBufferReadWrite(self, dstFile, responseString, bufferSize=819):
       dstFile.write(responseString)
 
-  # This part was adopted from XNATSlicer module
-  def __bufferReadWrite(self, dstFile, response, selectedSeries, seriesSize, bufferSize=8192):
-
-    currentDownloadProgressBar = self.downloadProgressBars[selectedSeries]
-    currentProgressLabel = self.downloadProgressLabels[selectedSeries]
-
-    # Define the buffer read loop
-    self.downloadSize = 0
-    while 1:
-      # If DOWNLOAD FINISHED
-      buffer = response.read(bufferSize)
-      slicer.app.processEvents()
-      if not buffer:
-        # Pop from the queue
-        currentDownloadProgressBar.setMaximum(100)
-        currentDownloadProgressBar.setValue(100)
-        # currentDownloadProgressBar.setVisible(False)
-        # currentProgressLabel.setVisible(False)
-        self.removeDownloadProgressBar(selectedSeries)
-        self.downloadQueue.pop(selectedSeries, None)
-        break
-      if self.cancelDownload:
-        return False
-
-      # Otherwise, Write buffer chunk to file
-      slicer.app.processEvents()
-      dstFile.write(buffer)
-      #
-      # And update progress indicators
-      #
-      self.downloadSize += len(buffer)
-      currentDownloadProgressBar.setValue(self.downloadSize / seriesSize * 100)
-      # currentDownloadProgressBar.setMaximum(0)
-      currentProgressLabel.text = self.selectedSeriesNicknamesDic[
-                      selectedSeries] + ' (' + str(int(self.downloadSize / 1024)
-                                     ) + ' of ' + str(
-        int(seriesSize / 1024)) + " KB)"
-    # return self.downloadSize
-    return True
+  def updateProgressBar(self, currentValue, totalValue, unit="B", description=""):
+    units = ["B", "kB", "MB", "GB", "TB", "PB", "EB", "ZB"]
+    for currentUnit in units:
+        unit = currentUnit
+        if abs(totalValue) < 1000.0 or currentUnit == units[-1]:
+            break
+        totalValue /= 1000.0
+        currentValue /= 1000.0
+    self.downloadProgressBar.setMaximum(int(totalValue))
+    self.downloadProgressBar.setValue(int(currentValue))
+    self.downloadProgressBar.setFormat(f"{description + ' ' if description else ''}%p% (%v{unit}/%m{unit})")
+    slicer.app.processEvents()
 
   def unzip(self, sourceFilename, destinationDir):
     totalItems = 0
