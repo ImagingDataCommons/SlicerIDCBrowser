@@ -17,7 +17,6 @@ import xml.etree.ElementTree as ET
 import zipfile
 from random import randint
 import tempfile
-import pandas as pd
 import inspect
 
 # Third-party imports
@@ -1269,6 +1268,8 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
     downloadQueueData = { 'SeriesInstanceUID': self.downloadQueue.keys(),
              'DownloadFolder': self.downloadQueue.values() }
+
+    import pandas as pd
     manifest_df = pd.DataFrame.from_dict(downloadQueueData)
     manifest_df = manifest_df.merge(self.IDCClient.index, on='SeriesInstanceUID', how='left')
     manifestContents = "\n".join(
