@@ -110,8 +110,6 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
     self.imagesToDownloadCount = 0
 
-    self.downloadProgressBarWidgets = []
-
     item = qt.QStandardItem()
 
     # Put the files downloaded from IDC in the DICOM database folder by default.
@@ -575,6 +573,15 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     settingsGridLayout.addWidget(self.storagePathButton, 0, 1, 1, 2)
     settingsGridLayout.addWidget(self.storageResetButton, 0, 3, 1, 1)
 
+    # Toggle web widget visibility
+    self.webWidgetCheckBox = qt.QCheckBox()
+    settingsGridLayout.addWidget(qt.QLabel("Show IDC portal tab:"), 1, 0, 1, 3)
+    settingsGridLayout.addWidget(self.webWidgetCheckBox, 1, 1, 1, 2)
+    self.webWidgetCheckBox.checked = slicer.util.settingsValue("IDCBrowser/ShowWebWidget", False, converter=slicer.util.toBool)
+    # only show if developer mode is enabled
+    if not self.developerMode:
+      self.webWidgetCheckBox.hide()
+
     # connections
     self.showBrowserButton.connect('clicked(bool)', self.onShowBrowserButton)
     self.downloadButton.connect('clicked(bool)', self.onDownloadButton)
@@ -593,6 +600,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.seriesSelectNoneButton.connect('clicked(bool)', self.onSeriesSelectNoneButton)
     self.studiesSelectAllButton.connect('clicked(bool)', self.onStudiesSelectAllButton)
     self.studiesSelectNoneButton.connect('clicked(bool)', self.onStudiesSelectNoneButton)
+    self.webWidgetCheckBox.connect('toggled(bool)', self.onWebWidgetToggled)
 
     self.loadOnDownloadAction.connect('toggled(bool)', self.onDownloadOptionsToggled)
     self.importOnDownloadAction.connect('toggled(bool)', self.onDownloadOptionsToggled)
@@ -612,19 +620,54 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     if layoutManager:
       layoutManager.registerViewFactory(self.viewFactory)
       layoutManager.layoutChanged.connect(self.onLayoutChanged)
-      layout = (
-          '<layout type="horizontal">'
-          " <item>"
-          "  <idcbrowser></idcbrowser>"
-          " </item>"
-          "</layout>"
+      layout = ("""
+          <layout type="horizontal">
+           <item>
+            <idcbrowser></idcbrowser>
+           </item>
+          </layout>"""
       )
       layoutNode = layoutManager.layoutLogic().GetLayoutNode()
       layoutNode.AddLayoutDescription(self.IDCBrowserLayout, layout)
       self.currentViewArrangement = layoutNode.GetViewArrangement()
       self.previousViewArrangement = layoutNode.GetViewArrangement()
 
-    self.viewFactory.setWidget(self.browserWidget)
+    self.webWidget = slicer.qSlicerWebWidget()
+    self.webWidget.setAcceptDrops(False)
+    self.webWidget.webView().setAcceptDrops(False)
+
+    updateStyleJS = """
+(function injectCSS() {
+  const css = `
+    .site-header,
+    .page-heading,
+    .site-footer,
+    .download-col,
+    .open-viewer,
+    .manifest-col
+    {
+      display: none !important;
+      visibility: hidden !important;
+    }
+    body { margin-top: 0 !important; margin-bottom: 0 !important; }
+  `;
+  // only add once
+  if (!document.getElementById('hide-hf-style'))
+  {
+    const s = document.createElement('style');
+    s.id = 'hide-hf-style';
+    s.textContent = css;
+    (document.head || document.documentElement).appendChild(s);
+  }
+})();
+"""
+    self.webWidget.loadProgress.connect(lambda p: self.webWidget.evalJS(updateStyleJS))
+    self.webWidget.url = qt.QUrl("https://portal.imaging.datacommons.cancer.gov/explore/")
+
+    self.tabWidget = qt.QTabWidget()
+    self.tabWidget.addTab(self.browserWidget, "Local Browser")
+    self.tabWidget.addTab(self.webWidget, "IDC Portal")
+    self.viewFactory.setWidget(self.tabWidget)
 
     # Add vertical spacer
     self.layout.addStretch(1)
@@ -634,6 +677,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     if not self.initialConnection:
       self.getCollectionValues()
 
+    self.updateWebWidgetVisibility()
     self.startPythonRequirementsCheck()
 
   def updateUpgradeRequiredWidget(self):
@@ -755,14 +799,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     manifest_df = self.IDCClient.sql_query(query)
     manifest_df.to_csv(manifest_path, index=False, header=False)
     logging.info("Will download to "+downloadDestination)
-    try:
-      self.showProgressBar()
-      if 'progress_callback' in inspect.signature(self.IDCClient.download_from_manifest).parameters:
-        self.IDCClient.download_from_manifest(manifest_path, downloadDestination, progress_callback=self.updateProgressBar)
-      else:
-        self.IDCClient.download_from_manifest(manifest_path, downloadDestination)
-    finally:
-      self.hideProgressBar()
+    self.downloadFromManifestFile(manifest_path, downloadDestination)
 
   def onDownloadButton(self):
 
@@ -772,19 +809,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     import os
     if(os.path.exists(self.manifestSelector.currentPath)):
       self.download_status.setText('Downloading from manifest...')
-      try:
-        self.showProgressBar()
-        if 'progress_callback' in inspect.signature(self.IDCClient.download_from_manifest).parameters:
-          self.IDCClient.download_from_manifest(self.manifestSelector.currentPath, self.downloadDestinationSelector.directory, progress_callback=self.updateProgressBar)
-        else:
-          self.IDCClient.download_from_manifest(self.manifestSelector.currentPath, self.downloadDestinationSelector.directory)
-      except Exception as error:
-        self.download_status.setText('Download from manifest failed.')
-        logging.error('Download from manifest failed.')
-        logging.error(error)
-        return
-      finally:
-        self.hideProgressBar()
+      self.downloadFromManifestFile(self.manifestSelector.currentPath, self.downloadDestinationSelector.directory)
       self.download_status.setText('Download from manifest done.')
 
     if(self.patientIDSelector.text != ''):
@@ -955,6 +980,16 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
   def onSeriesSelectNoneButton(self):
     self.seriesTableWidget.clearSelection()
+
+  def onWebWidgetToggled(self, checked):
+    self.settings.setValue("IDCBrowser/ShowWebWidget", checked)
+    self.updateWebWidgetVisibility()
+
+  def updateWebWidgetVisibility(self):
+    if self.tabWidget is None:
+      return
+    showWebWidget = slicer.util.settingsValue("IDCBrowser/ShowWebWidget", False, converter=slicer.util.toBool)
+    self.tabWidget.tabBar().setVisible(showWebWidget)
 
   def collectionSelected(self, item):
     self.loadButton.enabled = False
@@ -1298,10 +1333,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
       manifest_file.close()
       logging.debug("Manifest file created: " + manifest_file.name)
 
-      if 'progress_callback' in inspect.signature(self.IDCClient.download_from_manifest).parameters:
-        self.IDCClient.download_from_manifest(manifestFile=manifest_file.name, downloadDir=self.storagePath, progress_callback=self.updateProgressBar)
-      else:
-        self.IDCClient.download_from_manifest(manifestFile=manifest_file.name, downloadDir=self.storagePath)
+      self.downloadFromManifestFile(manifest_file.name, self.storagePath)
 
       os.remove(manifest_file.name)
       slicer.app.processEvents()
@@ -1576,7 +1608,27 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     table.clear()
     table.setHorizontalHeaderLabels(self.seriesTableHeaderLabels)
 
+  def downloadFromManifestFile(self, filePath, downloadDir=None):
+    if downloadDir is None:
+        downloadDir = self.downloadDestinationSelector.directory
 
+    try:
+      self.showProgressBar()
+      slicer.app.processEvents()
+      if 'progress_callback' in inspect.signature(self.IDCClient.download_from_manifest).parameters:
+        self.IDCClient.download_from_manifest(manifestFile=filePath, downloadDir=downloadDir, progress_callback=self.updateProgressBar)
+      else:
+        self.IDCClient.download_from_manifest(manifestFile=filePath, downloadDir=downloadDir)
+    except Exception as error:
+      self.download_status.setText('Download from manifest failed.')
+      logging.error('Download from manifest failed.')
+      logging.error(error)
+      return
+    finally:
+      self.hideProgressBar()
+      slicer.app.processEvents()
+
+    return True
 
 #
 # IDCBrowserLogic
@@ -1706,6 +1758,38 @@ class IDCBrowserLogic(ScriptedLoadableModuleLogic):
     idc_index_pip_dir = os.path.dirname(self.idc_index_location)
     return os.path.join(idc_index_pip_dir,'idc_index.csv.zip')
 
+class IDCBrowserFileReader:
+  def __init__(self, parent):
+    self.parent = parent
+
+  def description(self):
+    return "s5cmd manifest file"
+
+  def fileType(self):
+    return "s5cmdManifest"
+
+  def extensions(self):
+    return ["s5cmd manifest file (*.s5cmd)"]
+
+  def canLoadFile(self, filePath):
+    return True
+
+  def load(self, properties):
+    if properties['fileType'] != self.fileType():
+      return False
+
+    fileName = properties['fileName']
+    if not os.path.isfile(fileName):
+      logging.error('IDCBrowserFileReader: file does not exist: ' + fileName)
+      return False
+
+    slicer.util.selectModule("IDCBrowser")
+    slicer.app.processEvents()
+    idcBrowserWidget = slicer.modules.idcbrowser.widgetRepresentation().self()
+    success = idcBrowserWidget.downloadFromManifestFile(fileName, idcBrowserWidget.storagePath)
+    slicer.app.processEvents()
+    idcBrowserWidget.addFilesToDatabase(idcBrowserWidget.storagePath)
+    return success
 
 class IDCBrowserTest(ScriptedLoadableModuleTest):
   """
