@@ -74,7 +74,6 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
     self.logic = IDCBrowserLogic()
 
-
     logging.info("Checking requirements ...")
     update = slicer.util.settingsValue("IDCBrowser/PipUpdateRequested", False, converter=slicer.util.toBool)
     if self.logic.setupPythonRequirements(update):
@@ -98,6 +97,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     logging.info("Initialization done.")
 
     self.browserWidget = qt.QWidget()
+    self.browserWidget.setObjectName("browserWidget")
     self.browserWidget.setWindowTitle('SlicerIDCBrowser | NCI Imaging Data Commons data release '+self.logic.idc_version)
 
     self.initialConnection = False
@@ -116,17 +116,18 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     # This makes downloaded files relocatable along with the DICOM database in
     # recent Slicer versions.
 
-    if not os.path.isfile(slicer.dicomDatabase.databaseFilename):
+    dicomDatabase = slicer.app.dicomDatabase()
+    if not os.path.isfile(dicomDatabase.databaseFilename):
       dicomBrowser = ctk.ctkDICOMBrowser()
-      dicomBrowser.databaseDirectory = slicer.dicomDatabase.databaseDirectory
+      dicomBrowser.databaseDirectory = dicomDatabase.databaseDirectory
       dicomBrowser.createNewDatabaseDirectory()
-      slicer.dicomDatabase.openDatabase(slicer.dicomDatabase.databaseFilename)
+      dicomDatabase.openDatabase(dicomDatabase.databaseFilename)
       logging.info("DICOM database created")
     else:
-      logging.info('DICOM database is available at '+slicer.dicomDatabase.databaseFilename)
-      slicer.dicomDatabase.updateSchemaIfNeeded()
+      logging.info('DICOM database is available at '+dicomDatabase.databaseFilename)
+      dicomDatabase.updateSchemaIfNeeded()
 
-    databaseDirectory = slicer.dicomDatabase.databaseDirectory
+    databaseDirectory = dicomDatabase.databaseDirectory
     self.storagePath = self.settings.value("IDCCustomStoragePath")  if self.settings.contains("IDCCustomStoragePath") else databaseDirectory + "/IDCLocal/"
     logging.debug("IDC downloaded data storage path: " + self.storagePath)
     if not os.path.exists(self.storagePath):
@@ -199,11 +200,11 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.updateRequiredWidget.setLayout(qt.QGridLayout())
     self.layout.addWidget(self.updateRequiredWidget)
 
-    self.updateRequiredLabel = qt.QLabel("Required Python libraries are outdated. Please restart Slicer to update them.")
+    self.updateRequiredLabel = qt.QLabel("Required Python libraries are outdated. Please restart to update them.")
     self.updateRequiredWidget.layout().addWidget(self.updateRequiredLabel, 0, 0, 1, 2)
 
     self.updateAndRestartButton = qt.QPushButton("Restart")
-    self.updateAndRestartButton.toolTip = "Update required Python libraries and restart Slicer."
+    self.updateAndRestartButton.toolTip = "Update required Python libraries and restart."
     self.updateAndRestartButton.connect('clicked(bool)', slicer.util.restart)
     self.updateRequiredWidget.layout().addWidget(self.updateAndRestartButton, 1, 1)
 
@@ -213,10 +214,10 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     #
     # Browser Area
     #
-    browserCollapsibleButton = ctk.ctkCollapsibleButton()
-    browserCollapsibleButton.text = "SlicerIDCBrowser | NCI Imaging Data Commons data release " + self.logic.idc_version
-    self.layout.addWidget(browserCollapsibleButton)
-    browserLayout = qt.QVBoxLayout(browserCollapsibleButton)
+    self.browserCollapsibleButton = ctk.ctkCollapsibleButton()
+    self.browserCollapsibleButton.text = "SlicerIDCBrowser | NCI Imaging Data Commons data release " + self.logic.idc_version
+    self.layout.addWidget(self.browserCollapsibleButton)
+    browserLayout = qt.QVBoxLayout(self.browserCollapsibleButton)
 
     self.popupGeometry = qt.QRect()
     settings = qt.QSettings()
@@ -368,6 +369,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     patientsVBoxLayout2 = qt.QVBoxLayout(patientsExpdableArea)
     # patientsVerticalLayout = qt.QVBoxLayout(patientsExpdableArea)
     self.patientsTableWidget = qt.QTableWidget()
+    self.patientsTableWidget.setAlternatingRowColors(True)
     self.patientsModel = qt.QStandardItemModel()
     self.patientsTableHeaderLabels = ['Patient ID', 'Patient Sex', 'Patient Age']
     self.patientsTableWidget.setColumnCount(3)
@@ -398,6 +400,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     studiesVBoxLayout1.addWidget(studiesExpdableArea)
     studiesVBoxLayout2 = qt.QVBoxLayout(studiesExpdableArea)
     self.studiesTableWidget = qt.QTableWidget()
+    self.studiesTableWidget.setAlternatingRowColors(True)
     self.studiesTableWidget.setCornerButtonEnabled(True)
     self.studiesModel = qt.QStandardItemModel()
     self.studiesTableHeaderLabels = ['Study Instance UID', 'Study Date', 'Study Description', 'Series Count']
@@ -445,6 +448,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     seriesVBoxLayout1.addWidget(seriesExpdableArea)
     seriesVBoxLayout2 = qt.QVBoxLayout(seriesExpdableArea)
     self.seriesTableWidget = qt.QTableWidget()
+    self.seriesTableWidget.setAlternatingRowColors(True)
     # self.seriesModel = qt.QStandardItemModel()
     self.seriesTableWidget.setColumnCount(10)
     self.seriesTableWidget.sortingEnabled = True
@@ -665,6 +669,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.webWidget.url = qt.QUrl("https://portal.imaging.datacommons.cancer.gov/explore/")
 
     self.tabWidget = qt.QTabWidget()
+    self.tabWidget.setObjectName("IDCBrowserTabWidget")
     self.tabWidget.addTab(self.browserWidget, "Local Browser")
     self.tabWidget.addTab(self.webWidget, "IDC Portal")
     self.viewFactory.setWidget(self.tabWidget)
@@ -768,7 +773,6 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
               # DataProbe was temporarily hidden, restore its visibility now
               dataProbe.setVisible(True)
               self.dataProbeHasBeenTemporarilyHidden = False
-
 
   def cleanup(self):
     pass
@@ -964,7 +968,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.showBrowser()
 
   def enter(self):
-    self.showBrowser()
+    qt.QTimer.singleShot(0, self.showBrowser)
 
   def exit(self):
     self.closeBrowser()
@@ -1223,9 +1227,9 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     # even when a relative path is used as self.extractedFilesDirectories.
     if not directory:
       for extractedFilesDirectory in self.extractedFilesDirectories:
-        indexer.addDirectory(slicer.dicomDatabase, os.path.abspath(extractedFilesDirectory))
+        indexer.addDirectory(slicer.app.dicomDatabase(), os.path.abspath(extractedFilesDirectory))
     else:
-      indexer.addDirectory(slicer.dicomDatabase, os.path.abspath(directory))
+      indexer.addDirectory(slicer.app.dicomDatabase(), os.path.abspath(directory))
     indexer.waitForImportFinished()
     self.clearStatus()
 
@@ -1268,8 +1272,8 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
           self.showStatus(self.progressMessage, '')
           plugin = slicer.modules.dicomPlugins['DICOMScalarVolumePlugin']()
           seriesUID = seriesUID.replace("'", "")
-          dicomDatabase = slicer.dicomDatabase
-          fileList = slicer.dicomDatabase.filesForSeries(seriesUID)
+          dicomDatabase = slicer.app.dicomDatabase()
+          fileList = slicer.app.dicomDatabase().filesForSeries(seriesUID)
           loadables = []
 
           try:
