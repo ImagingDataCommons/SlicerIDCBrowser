@@ -311,6 +311,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     # add output directory selector
     label = qt.QLabel('Download directory:')
     self.downloadDestinationSelector = ctk.ctkDirectoryButton()
+    self.downloadDestinationSelector.setSizePolicy(qt.QSizePolicy.Ignored, qt.QSizePolicy.Preferred)
     self.downloadDestinationSelector.caption = 'Output directory'
     self.downloadDestinationSelector.directory = self.storagePath
     downloaderLayout.addWidget(label, 5, 0)
@@ -568,7 +569,9 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     # settingsVBoxLayout.addWidget(storageWidget)
 
     storagePathLabel = qt.QLabel("Storage Folder: ")
+    storagePathLabel.setSizePolicy(qt.QSizePolicy.Fixed, qt.QSizePolicy.Preferred)
     self.storagePathButton = ctk.ctkDirectoryButton()
+    self.storagePathButton.setSizePolicy(qt.QSizePolicy.Ignored, qt.QSizePolicy.Preferred)
     self.storagePathButton.directory = self.storagePath
     self.storageResetButton = qt.QPushButton("Reset Path")
     self.storageResetButton.toolTip = "Resetting the storage folder to default."
