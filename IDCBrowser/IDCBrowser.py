@@ -110,6 +110,15 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
     self.imagesToDownloadCount = 0
 
+    # Create a timer for debounced search
+    self.searchDebounceTimer = qt.QTimer()
+    self.searchDebounceTimer.setSingleShot(True)
+    self.searchDebounceTimer.setInterval(300)
+    self.searchDebounceTimer.timeout.connect(self.performUnifiedSearch)
+
+    # Flag to track if we're searching specifically for a series (to prevent auto-select all)
+    self.isSearchingForSpecificSeries = False
+
     item = qt.QStandardItem()
 
     # Put the files downloaded from IDC in the DICOM database folder by default.
@@ -275,38 +284,18 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     #downloaderLayout.addWidget(self.downloadFromManifestButton, 1, 2)
     #downloaderLayout.addWidget(self.downloadAndIndexFromManifestButton, 1, 3)
 
-    # add download by PatientID
-    label = qt.QLabel('PatientID:')
-    self.patientIDSelector = qt.QLineEdit()
-    self.patientIDSelector.setPlaceholderText('Enter PatientID here')
-    self.downloadFromPatientIDButton = qt.QPushButton("D")
-    self.downloadAndIndexFromPatientIDButton = qt.QPushButton("DI")
+    # add unified search field
+    label = qt.QLabel('Search:')
+    self.unifiedSearchSelector = qt.QLineEdit()
+    self.unifiedSearchSelector.setPlaceholderText('Enter Collection ID, Patient ID, Study UID, or Series UID')
     downloaderLayout.addWidget(label, 2, 0)
-    downloaderLayout.addWidget(self.patientIDSelector, 2, 1)
-    #downloaderLayout.addWidget(self.downloadFromPatientIDButton, 2, 2)
-    #downloaderLayout.addWidget(self.downloadAndIndexFromPatientIDButton, 2, 3)
+    downloaderLayout.addWidget(self.unifiedSearchSelector, 2, 1)
 
-    # add download by StudyInstanceUID
-    label = qt.QLabel('StudyInstanceUID:')
-    self.studyUIDSelector = qt.QLineEdit()
-    self.studyUIDSelector.setPlaceholderText('Enter DICOM StudyInstanceUID here')
-    self.downloadFromStudyUIDButton = qt.QPushButton("D")
-    self.downloadAndIndexFromStudyUIDButton = qt.QPushButton("DI")
-    downloaderLayout.addWidget(label, 3, 0)
-    downloaderLayout.addWidget(self.studyUIDSelector, 3, 1)
-    #downloaderLayout.addWidget(self.downloadFromStudyUIDButton, 3, 2)
-    #downloaderLayout.addWidget(self.downloadAndIndexFromStudyUIDButton, 3, 3)
-
-    # add download by SeriesInstanceUID
-    label = qt.QLabel('SeriesInstanceUID:')
-    self.seriesUIDSelector = qt.QLineEdit()
-    self.seriesUIDSelector.setPlaceholderText('Enter DICOM SeriesInstanceUID here')
-    self.downloadFromSeriesUIDButton = qt.QPushButton("D")
-    self.downloadAndIndexFromSeriesUIDButton = qt.QPushButton("DI")
-    downloaderLayout.addWidget(label, 4, 0)
-    downloaderLayout.addWidget(self.seriesUIDSelector, 4, 1)
-    #downloaderLayout.addWidget(self.downloadFromSeriesUIDButton, 4, 2)
-    #downloaderLayout.addWidget(self.downloadAndIndexFromSeriesUIDButton, 4, 3)
+    # add warning label for no matches
+    self.searchWarningLabel = qt.QLabel('')
+    self.searchWarningLabel.setStyleSheet("QLabel { color: red; font-weight: bold; }")
+    self.searchWarningLabel.hide()
+    downloaderLayout.addWidget(self.searchWarningLabel, 3, 0, 1, 2)
 
     # add output directory selector
     label = qt.QLabel('Download directory:')
@@ -314,35 +303,8 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.downloadDestinationSelector.setSizePolicy(qt.QSizePolicy.Ignored, qt.QSizePolicy.Preferred)
     self.downloadDestinationSelector.caption = 'Output directory'
     self.downloadDestinationSelector.directory = self.storagePath
-    downloaderLayout.addWidget(label, 5, 0)
-    downloaderLayout.addWidget(self.downloadDestinationSelector, 5, 1, 1, 3)
-
-    self.download_status = qt.QLabel('Download status: Ready')
-    downloaderLayout.addWidget(self.download_status, 6, 0)
-
-    #
-    # Show Download Button
-    #
-    self.downloadButton = ctk.ctkMenuButton()
-    self.downloadButton.text = "Download, import and load into scene"
-    downloadButtonMenu = qt.QMenu("Download options", self.downloadButton)
-    self.downloadButton.setMenu(downloadButtonMenu)
-
-    self.importOnDownloadAction = qt.QAction("Import downloaded files to DICOM database", downloadButtonMenu)
-    self.importOnDownloadAction.setToolTip("If enabled, all downloaded files are imported into the DICOM database.")
-    self.importOnDownloadAction.setCheckable(True)
-    self.importOnDownloadAction.setChecked(True)
-    downloadButtonMenu.addAction(self.importOnDownloadAction)
-
-
-    self.loadOnDownloadAction = qt.QAction("Open downloaded series", downloadButtonMenu)
-    self.loadOnDownloadAction.setToolTip("If enabled, all downloaded files are imported into the DICOM database and loaded into the scene.")
-    self.loadOnDownloadAction.setCheckable(False)
-    self.loadOnDownloadAction.setChecked(False)
-    #downloadButtonMenu.addAction(self.loadOnDownloadAction)
-    self.onDownloadOptionsToggled(False)
-
-    downloaderLayout.addWidget(self.downloadButton, 7,0,1,3)
+    downloaderLayout.addWidget(label, 4, 0)
+    downloaderLayout.addWidget(self.downloadDestinationSelector, 4, 1, 1, 3)
 
     #
     # Collection Selector ComboBox
@@ -591,7 +553,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
     # connections
     self.showBrowserButton.connect('clicked(bool)', self.onShowBrowserButton)
-    self.downloadButton.connect('clicked(bool)', self.onDownloadButton)
+    self.unifiedSearchSelector.connect('textChanged(QString)', self.onUnifiedSearchTextChanged)
     self.collectionSelector.connect('currentIndexChanged(QString)', self.collectionSelected)
     self.patientsTableWidget.connect('itemSelectionChanged()', self.patientsTableSelectionChanged)
     self.studiesTableWidget.connect('itemSelectionChanged()', self.studiesTableSelectionChanged)
@@ -608,9 +570,6 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.studiesSelectAllButton.connect('clicked(bool)', self.onStudiesSelectAllButton)
     self.studiesSelectNoneButton.connect('clicked(bool)', self.onStudiesSelectNoneButton)
     self.webWidgetCheckBox.connect('toggled(bool)', self.onWebWidgetToggled)
-
-    self.loadOnDownloadAction.connect('toggled(bool)', self.onDownloadOptionsToggled)
-    self.importOnDownloadAction.connect('toggled(bool)', self.onDownloadOptionsToggled)
 
     # This variable is set to true if we temporarily
     # hide the data probe (and so we need to restore its visibility).
@@ -780,19 +739,6 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
   def cleanup(self):
     pass
 
-  def onDownloadOptionsToggled(self, state):
-    importState = self.importOnDownloadAction.isChecked()
-    loadState = self.loadOnDownloadAction.isChecked()
-
-    buttonLabel = "Download"
-    if importState:
-      if loadState:
-        buttonLabel = buttonLabel + ", import and load into scene"
-      else:
-        buttonLabel = buttonLabel + " and import into DICOM database"
-
-    self.downloadButton.text = buttonLabel
-
   def onShowBrowserButton(self):
     if self.showBrowserButton.checked:
       self.showBrowser()
@@ -808,84 +754,192 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     logging.info("Will download to "+downloadDestination)
     self.downloadFromManifestFile(manifest_path, downloadDestination)
 
-  def onDownloadButton(self):
+  def onUnifiedSearchTextChanged(self, searchText):
+    """
+    Debounce the search - restarts the timer on each text change.
+    """
+    self.pendingSearchText = searchText.strip()
+    if not self.pendingSearchText:
+      self.searchWarningLabel.hide()
+      return
 
-    startTime = time.time()
-    self.download_status.setText('Download status: Downloading...')
-    slicer.app.processEvents()
-    import os
-    if(os.path.exists(self.manifestSelector.currentPath)):
-      self.download_status.setText('Downloading from manifest...')
-      self.downloadFromManifestFile(self.manifestSelector.currentPath, self.downloadDestinationSelector.directory)
-      self.download_status.setText('Download from manifest done.')
+    # Reset the timer on each keystroke
+    self.searchDebounceTimer.stop()
+    self.searchDebounceTimer.start()
 
-    if(self.patientIDSelector.text != ''):
-      # TODO: how to interrupt long download from GUI?
-      self.download_status.setText('Downloading from PatientID...')
-      query = """
-        SELECT CONCAT('cp ',series_aws_url,' .')
-        FROM index
-        WHERE PatientID = '""" + self.patientIDSelector.text + """'
-      """
+  def performUnifiedSearch(self):
+    """
+    Search for the given text in collection_id, PatientID, StudyInstanceUID, or SeriesInstanceUID.
+    Auto-select matching items in the browser.
+    """
+    if not hasattr(self, 'pendingSearchText'):
+      logging.debug("No pending search text")
+      return
+
+    # Reset warning
+    self.searchWarningLabel.hide()
+
+    searchText = self.pendingSearchText
+    if not searchText:
+      return
+
+    logging.info(f"Performing unified search for: '{searchText}'")
+
+    # Reset the series-specific search flag (will be set to True only for series searches)
+    self.isSearchingForSpecificSeries = False
+
+    # Clear existing selections before starting search
+    self.patientsTableWidget.clearSelection()
+    self.studiesTableWidget.clearSelection()
+    self.seriesTableWidget.clearSelection()
+
+    # Check if IDCClient is initialized
+    if not hasattr(self, 'IDCClient') or self.IDCClient is None:
+      logging.error("IDCClient not initialized")
+      self.searchWarningLabel.setText('Search unavailable - IDC client not initialized.')
+      self.searchWarningLabel.show()
+      return
+
+    matchFound = False
+
+    try:
+      # First, check if it matches a collection_id
+      collections = self.IDCClient.get_collections()
+      logging.debug(f"Checking against {len(collections)} collections")
+      if searchText in collections:
+        matchFound = True
+        logging.info(f"Found matching collection: {searchText}")
+        # Select the collection in the combo box
+        index = self.collectionSelector.findText(searchText)
+        if index >= 0:
+          logging.debug(f"Selecting collection at index {index}")
+          self.collectionSelector.setCurrentIndex(index)
+          return
+        else:
+          logging.warning(f"Collection '{searchText}' found in list but not in combo box")
+
+      # Check if it matches a PatientID
       try:
-        self.downloadFromQuery(query, self.downloadDestinationSelector.directory)
-      except Exception as error:
-        self.download_status.setText('Download from PatientID failed.')
-        logging.error('Download from PatientID failed.')
-        logging.error(error)
-        return
-      self.download_status.setText('Download from PatientID done.')
+        # Search across all collections for this patient
+        logging.debug(f"Searching for PatientID: {searchText}")
+        patient_matches = self.IDCClient.index[self.IDCClient.index['PatientID'] == searchText]
+        if not patient_matches.empty:
+          matchFound = True
+          # Get the collection for this patient
+          collection_id = patient_matches.iloc[0]['collection_id']
+          logging.info(f"Found patient '{searchText}' in collection '{collection_id}'")
+          # Select the collection
+          index = self.collectionSelector.findText(collection_id)
+          if index >= 0:
+            self.collectionSelector.setCurrentIndex(index)
+            self.selectPatientInTable(searchText)
+          else:
+            self.searchWarningLabel.setText('Collection for the found series is not available in the selector.')
+            self.searchWarningLabel.show()
+          return
+      except Exception as e:
+        logging.debug(f"Error searching for PatientID: {e}")
 
-    if(self.studyUIDSelector.text != ''):
-      # TODO: how to interrupt long download from GUI?
-      self.download_status.setText('Downloading from StudyInstanceUID...')
-      query = """
-        SELECT CONCAT('cp ',series_aws_url,' .')
-        FROM index
-        WHERE StudyInstanceUID = '""" + self.studyUIDSelector.text + """'
-      """
-      try:
-        self.downloadFromQuery(query, self.downloadDestinationSelector.directory)
-      except Exception as error:
-        self.download_status.setText('Download from StudyInstanceUID failed.')
-        logging.error('Download from StudyInstanceUID failed.')
-        logging.error(error)
-        return
-      self.download_status.setText('Download from StudyInstanceUID done.')
+      # Check if it matches a StudyInstanceUID
+      if '.' in searchText:
+        try:
+          logging.debug(f"Searching for StudyInstanceUID: {searchText}")
+          study_matches = self.IDCClient.index[self.IDCClient.index['StudyInstanceUID'] == searchText]
+          if not study_matches.empty:
+            matchFound = True
+            # Get collection and patient for this study
+            collection_id = study_matches.iloc[0]['collection_id']
+            patient_id = study_matches.iloc[0]['PatientID']
+            logging.info(f"Found study '{searchText}' for patient '{patient_id}' in collection '{collection_id}'")
+            # Select collection
+            index = self.collectionSelector.findText(collection_id)
+            if index >= 0:
+              self.collectionSelector.setCurrentIndex(index)
+              self.selectPatientAndStudy(patient_id, searchText)
+            else:
+              self.searchWarningLabel.setText('Collection for the found series is not available in the selector.')
+              self.searchWarningLabel.show()
+            return
+        except Exception as e:
+          logging.debug(f"Error searching for StudyInstanceUID: {e}")
 
-    if(self.seriesUIDSelector.text != ''):
-      # TODO: how to interrupt long download from GUI?
-      self.download_status.setText('Downloading from SeriesInstanceUID...')
-      query = """
-        SELECT CONCAT('cp ',series_aws_url,' .')
-        FROM index
-        WHERE SeriesInstanceUID = '""" + self.seriesUIDSelector.text + """'
-      """
-      try:
-        self.downloadFromQuery(query, self.downloadDestinationSelector.directory)
-      except Exception as error:
-        self.download_status.setText('Download from SeriesInstanceUID failed.')
-        logging.error('Download from SeriesInstanceUID failed.')
-        logging.error(error)
-        return
-      self.download_status.setText('Download from SeriesInstanceUID done.')
+        # Check if it matches a SeriesInstanceUID
+        try:
+          logging.debug(f"Searching for SeriesInstanceUID: {searchText}")
+          series_matches = self.IDCClient.index[self.IDCClient.index['SeriesInstanceUID'] == searchText]
+          if not series_matches.empty:
+            matchFound = True
+            # Get collection, patient, and study for this series
+            collection_id = series_matches.iloc[0]['collection_id']
+            patient_id = series_matches.iloc[0]['PatientID']
+            study_uid = series_matches.iloc[0]['StudyInstanceUID']
+            logging.info(f"Found series '{searchText}' for study '{study_uid}' in collection '{collection_id}'")
+            # Set flag to prevent auto-selecting all series
+            self.isSearchingForSpecificSeries = True
+            # Select collection
+            index = self.collectionSelector.findText(collection_id)
+            if index >= 0:
+              self.collectionSelector.setCurrentIndex(index)
+              self.selectPatientStudyAndSeries(patient_id, study_uid, searchText)
+            else:
+              self.searchWarningLabel.setText('Collection for the found series is not available in the selector.')
+              self.searchWarningLabel.show()
+            return
+        except Exception as e:
+          logging.debug(f"Error searching for SeriesInstanceUID: {e}")
 
-    self.download_status.setText('Download status: Done in {0:.2f} seconds.'.format(time.time() - startTime))
-    logging.info('Download status: Done in {0:.2f} seconds.'.format(time.time() - startTime))
+      # If no match found, show warning
+      if not matchFound:
+        self.searchWarningLabel.setText('No matching collection, patient, study, or series found.')
+        self.searchWarningLabel.show()
 
-    if self.importOnDownloadAction.isChecked():
-      logging.info('Importing downloaded data into DICOM database ...')
-      self.download_status.setText('Importing downloaded data into DICOM database ...')
-      self.addFilesToDatabase(self.downloadDestinationSelector.directory)
-      self.download_status.setText('Importing downloaded data into DICOM database done.')
-      logging.info('Importing downloaded data into DICOM database done.')
+    except Exception as error:
+      logging.error(f"Error in unified search: {error}")
+      self.searchWarningLabel.setText('Error performing search.')
+      self.searchWarningLabel.show()
 
-    if self.loadOnDownloadAction.isChecked():
-      logging.info('Loading downloaded data into scene ...')
-      self.download_status.setText('Loading downloaded data into scene ...')
-      self.logic.loadData(self.downloadDestinationSelector.directory)
-      self.download_status.setText('Loading downloaded data into scene done.')
-      logging.info('Loading downloaded data into scene done.')
+  def selectPatientInTable(self, patientID):
+    """Select a patient in the patients table."""
+    for row in range(self.patientsTableWidget.rowCount):
+      item = self.patientsTableWidget.item(row, 0)
+      if item and item.text() == patientID:
+        self.patientsTableWidget.selectRow(row)
+        break
+
+  def selectPatientAndStudy(self, patientID, studyUID):
+    """Select a patient and then a study in the tables."""
+    self.selectPatientInTable(patientID)
+    self.selectStudyInTable(studyUID)
+
+  def selectPatientStudyAndSeries(self, patientID, studyUID, seriesUID):
+    """Select a patient, study, and series in the tables."""
+    self.selectPatientInTable(patientID)
+    self.selectStudyAndSeries(studyUID, seriesUID)
+
+  def selectStudyInTable(self, studyUID):
+    """Select a study in the studies table."""
+    for row in range(self.studiesTableWidget.rowCount):
+      item = self.studiesTableWidget.item(row, 0)
+      if item and item.text() == studyUID:
+        self.studiesTableWidget.selectRow(row)
+        break
+
+  def selectStudyAndSeries(self, studyUID, seriesUID):
+    """Select a study and then a series in the tables."""
+    self.selectStudyInTable(studyUID)
+    self.selectSeriesInTable(seriesUID)
+
+  def selectSeriesInTable(self, seriesUID):
+    """Select a series in the series table."""
+    try:
+      for row in range(self.seriesTableWidget.rowCount):
+        item = self.seriesTableWidget.item(row, 0)
+        if item and item.text() == seriesUID:
+          self.seriesTableWidget.selectRow(row)
+          break
+      # Reset the series-specific search flag after series selection completes
+    finally:
+      self.isSearchingForSpecificSeries = False
 
   def onUseCacheStateChanged(self, state):
     if state == 0:
@@ -1173,7 +1227,9 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
         qt.QMessageBox.critical(slicer.util.mainWindow(),
                     'SlicerIDCBrowser', message, qt.QMessageBox.Ok)
 
-    self.onSeriesSelectAllButton()
+    # Only auto-select all series if we're not searching for a specific series
+    if not getattr(self, 'isSearchingForSpecificSeries', False):
+      self.onSeriesSelectAllButton()
     # self.loadButton.enabled = True
     # self.indexButton.enabled = True
 
