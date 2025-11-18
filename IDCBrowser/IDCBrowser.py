@@ -1655,8 +1655,6 @@ class IDCBrowserLogic(ScriptedLoadableModuleLogic):
     pass
 
   def setupPythonRequirements(self, update=False):
-    import importlib.metadata
-    import importlib.util
     needToInstall = False
     try:
         import idc_index
@@ -1669,11 +1667,10 @@ class IDCBrowserLogic(ScriptedLoadableModuleLogic):
       errorMessage = f"Failed to {'install' if needToInstall else 'update'} idc-index."
       if needToInstall:
         userMessage = "The module requires idc-index python package, which will now be installed."
-
-      if slicer.util.confirmOkCancelDisplay(userMessage, "SlicerIDCIndex initialization"):
-        with slicer.util.displayPythonShell() as shell, slicer.util.tryWithErrorDisplay(message=errorMessage, waitCursor=True) as errorDisplay:
-          slicer.util.pip_install(f"{'--upgrade ' if update else ''}idc-index>=0.7.0")
-          installed = True
+      logging.info(userMessage)
+      with slicer.util.displayPythonShell() as shell, slicer.util.tryWithErrorDisplay(message=errorMessage, waitCursor=True) as errorDisplay:
+        slicer.util.pip_install(f"{'--upgrade ' if update else ''}idc-index>=0.7.0")
+        installed = True
     else:
       installed = True
 
