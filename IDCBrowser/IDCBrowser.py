@@ -1442,15 +1442,15 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
   def updateProgressBar(self, currentValue, totalValue, unit="B", description=""):
     units = ["B", "kB", "MB", "GB", "TB", "PB", "EB", "ZB"]
+    self.downloadProgressBar.setMaximum(int(totalValue))
+    self.downloadProgressBar.setValue(int(currentValue))
     for currentUnit in units:
         unit = currentUnit
         if abs(totalValue) < 1000.0 or currentUnit == units[-1]:
             break
         totalValue /= 1000.0
         currentValue /= 1000.0
-    self.downloadProgressBar.setMaximum(int(totalValue))
-    self.downloadProgressBar.setValue(int(currentValue))
-    self.downloadProgressBar.setFormat(f"{description + ' ' if description else ''}%p% (%v{unit}/%m{unit})")
+    self.downloadProgressBar.setFormat(f"{description + ' ' if description else ''}%p% ({currentValue:.2f}{unit}/{totalValue:.2f}{unit})")
     slicer.app.processEvents()
 
   def unzip(self, sourceFilename, destinationDir):
