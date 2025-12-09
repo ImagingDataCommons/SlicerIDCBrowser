@@ -251,6 +251,23 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     # Browser Widget Layout within the collapsible button
     browserWidgetLayout = qt.QVBoxLayout(self.browserWidget)
 
+    # add unified search field
+    searchWidget = qt.QWidget()
+    searchWidgetLayout = qt.QGridLayout(searchWidget)
+    browserWidgetLayout.addWidget(searchWidget)
+
+    label = qt.QLabel('Search:')
+    self.unifiedSearchSelector = ctk.ctkSearchBox()
+    self.unifiedSearchSelector.setPlaceholderText('Enter Collection ID, Patient ID, Study UID, or Series UID')
+    searchWidgetLayout.addWidget(label, 0, 0)
+    searchWidgetLayout.addWidget(self.unifiedSearchSelector, 0, 1)
+
+    # add warning label for no matches
+    self.searchWarningLabel = qt.QLabel('')
+    self.searchWarningLabel.setStyleSheet("QLabel { color: red; font-weight: bold; }")
+    self.searchWarningLabel.hide()
+    searchWidgetLayout.addWidget(self.searchWarningLabel, 1, 0, 1, 2)
+
     self.collectionsCollapsibleGroupBox = ctk.ctkCollapsibleGroupBox()
     self.collectionsCollapsibleGroupBox.setTitle('Collections')
     browserWidgetLayout.addWidget(self.collectionsCollapsibleGroupBox)  #
@@ -284,19 +301,6 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     #downloaderLayout.addWidget(self.downloadFromManifestButton, 1, 2)
     #downloaderLayout.addWidget(self.downloadAndIndexFromManifestButton, 1, 3)
 
-    # add unified search field
-    label = qt.QLabel('Search:')
-    self.unifiedSearchSelector = qt.QLineEdit()
-    self.unifiedSearchSelector.setPlaceholderText('Enter Collection ID, Patient ID, Study UID, or Series UID')
-    downloaderLayout.addWidget(label, 2, 0)
-    downloaderLayout.addWidget(self.unifiedSearchSelector, 2, 1)
-
-    # add warning label for no matches
-    self.searchWarningLabel = qt.QLabel('')
-    self.searchWarningLabel.setStyleSheet("QLabel { color: red; font-weight: bold; }")
-    self.searchWarningLabel.hide()
-    downloaderLayout.addWidget(self.searchWarningLabel, 3, 0, 1, 2)
-
     # add output directory selector
     label = qt.QLabel('Download directory:')
     self.downloadDestinationSelector = ctk.ctkDirectoryButton()
@@ -314,7 +318,16 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     # Selector ComboBox
     self.collectionSelector = qt.QComboBox()
     self.collectionSelector.setMinimumWidth(200)
+    self.collectionSelector.setEditable(True)
+    self.collectionSelector.setInsertPolicy(qt.QComboBox.NoInsert)
     collectionsFormLayout.addWidget(self.collectionSelector)
+
+    # Set up QCompleter for auto-completion
+    self.collectionCompleter = qt.QCompleter()
+    self.collectionCompleter.setCaseSensitivity(qt.Qt.CaseInsensitive)
+    self.collectionCompleter.setCompletionMode(qt.QCompleter.PopupCompletion)
+    self.collectionCompleter.setFilterMode(qt.Qt.MatchContains)
+    self.collectionSelector.setCompleter(self.collectionCompleter)
 
     collectionsFormLayout.addStretch(4)
     logoLabelText = "IDC release "+self.logic.idc_version
@@ -1482,14 +1495,11 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
   def populateCollectionsTreeView(self, responseString):
       collectionNames = sorted(responseString)
 
-      self.collectionSelector.disconnect('currentIndexChanged(QString)')
       self.collectionSelector.clear()
-      self.collectionSelector.connect('currentIndexChanged(QString)', self.collectionSelected)
+      self.collectionSelector.addItems(collectionNames)
 
-      n = 0  # If you intend to use the 'n' variable for a specific purpose, it's kept here.
-
-      for name in collectionNames:
-          self.collectionSelector.addItem(name)
+      # Set up the completer with the same items
+      self.collectionCompleter.setModel(self.collectionSelector.model())
 
 
   def populatePatientsTableWidget(self, responseString):
