@@ -74,6 +74,12 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
     self.logic = IDCBrowserLogic()
 
+    # Get module path for resources
+    if 'IDCBrowser' in slicer.util.moduleNames():
+      self.modulePath = slicer.modules.idcbrowser.path.replace("IDCBrowser.py", "")
+    else:
+      self.modulePath = '.'
+
     logging.info("Checking requirements ...")
     update = slicer.util.settingsValue("IDCBrowser/PipUpdateRequested", False, converter=slicer.util.toBool)
     if self.logic.setupPythonRequirements(update):
@@ -96,7 +102,9 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
     logging.info("Initialization done.")
 
-    self.browserWidget = qt.QWidget()
+    # Load the browser widget UI
+    uiFilePath = os.path.join(self.modulePath, 'Resources', 'UI', 'IDCBrowserMain.ui')
+    self.browserWidget = slicer.util.loadUI(uiFilePath)
     self.browserWidget.setObjectName("browserWidget")
     self.browserWidget.setWindowTitle('SlicerIDCBrowser | NCI Imaging Data Commons data release '+self.logic.idc_version)
 
@@ -162,11 +170,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
       os.makedirs(self.cachePath)
     self.useCacheFlag = False
 
-    # Instantiate and connect widgets ...
-    if 'IDCBrowser' in slicer.util.moduleNames():
-      self.modulePath = slicer.modules.idcbrowser.path.replace("IDCBrowser.py", "")
-    else:
-      self.modulePath = '.'
+    # Load icons
     self.reportIcon = qt.QIcon(self.modulePath + '/Resources/Icons/report.png')
     downloadAndIndexIcon = qt.QIcon(self.modulePath + '/Resources/Icons/downloadAndIndex.png')
     downloadAndLoadIcon = qt.QIcon(self.modulePath + '/Resources/Icons/downloadAndLoad.png')
@@ -202,32 +206,54 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     reloadFormLayout.addWidget(self.reloadAndTestButton)
     self.reloadAndTestButton.connect('clicked()', self.onReloadAndTest)
 
-    #
-    # Update required area
-    #
-    self.updateRequiredWidget = qt.QWidget()
-    self.updateRequiredWidget.setLayout(qt.QGridLayout())
-    self.layout.addWidget(self.updateRequiredWidget)
+    # Load the module panel UI
+    uiFilePath = os.path.join(self.modulePath, 'Resources', 'UI', 'IDCBrowser.ui')
+    self.ui = slicer.util.loadUI(uiFilePath)
+    self.layout.addWidget(self.ui)
 
-    self.updateRequiredLabel = qt.QLabel("Required Python libraries are outdated. Please restart to update them.")
-    self.updateRequiredWidget.layout().addWidget(self.updateRequiredLabel, 0, 0, 1, 2)
+    # Get references to UI widgets from the loaded panel
+    self.updateRequiredWidget = self.ui.findChild(qt.QWidget, "updateRequiredWidget")
+    self.updateRequiredLabel = self.ui.findChild(qt.QLabel, "updateRequiredLabel")
+    self.updateAndRestartButton = self.ui.findChild(qt.QPushButton, "updateAndRestartButton")
+    self.browserCollapsibleButton = self.ui.findChild(ctk.ctkCollapsibleButton, "browserCollapsibleButton")
+    self.showBrowserButton = self.ui.findChild(qt.QPushButton, "showBrowserButton")
+    self.downloadDestinationSelector = self.ui.findChild(ctk.ctkDirectoryButton, "downloadDestinationSelector")
+    self.manifestSelector = self.ui.findChild(ctk.ctkPathLineEdit, "manifestSelector")
+    self.downloadProgressBar = self.ui.findChild(qt.QProgressBar, "downloadProgressBar")
+    self.storagePathButton = self.ui.findChild(ctk.ctkDirectoryButton, "storagePathButton")
+    self.storageResetButton = self.ui.findChild(qt.QPushButton, "storageResetButton")
+    self.webWidgetCheckBox = self.ui.findChild(qt.QCheckBox, "webWidgetCheckBox")
 
-    self.updateAndRestartButton = qt.QPushButton("Restart")
-    self.updateAndRestartButton.toolTip = "Update required Python libraries and restart."
+    # Update widgets with dynamic content
+    self.browserCollapsibleButton.text = "SlicerIDCBrowser | NCI Imaging Data Commons data release " + self.logic.idc_version
     self.updateAndRestartButton.connect('clicked(bool)', slicer.util.restart)
-    self.updateRequiredWidget.layout().addWidget(self.updateAndRestartButton, 1, 1)
-
-    self.updateRequiredWidget.setStyleSheet("background-color: #fffacd; color: black;")
     self.updateUpgradeRequiredWidget()
 
-    #
-    # Browser Area
-    #
-    self.browserCollapsibleButton = ctk.ctkCollapsibleButton()
-    self.browserCollapsibleButton.text = "SlicerIDCBrowser | NCI Imaging Data Commons data release " + self.logic.idc_version
-    self.layout.addWidget(self.browserCollapsibleButton)
-    browserLayout = qt.QVBoxLayout(self.browserCollapsibleButton)
+    # Get references to browser widget UI elements
+    self.unifiedSearchSelector = self.browserWidget.findChild(ctk.ctkSearchBox, "unifiedSearchSelector")
+    self.searchWarningLabel = self.browserWidget.findChild(qt.QLabel, "searchWarningLabel")
+    self.collectionsCollapsibleGroupBox = self.browserWidget.findChild(ctk.ctkCollapsibleGroupBox, "collectionsCollapsibleGroupBox")
+    self.collectionSelectorLabel = self.browserWidget.findChild(qt.QLabel, "collectionSelectorLabel")
+    self.collectionSelector = self.browserWidget.findChild(qt.QComboBox, "collectionSelector")
+    self.logoLabel = self.browserWidget.findChild(qt.QLabel, "logoLabel")
+    self.patientsCollapsibleGroupBox = self.browserWidget.findChild(ctk.ctkCollapsibleGroupBox, "patientsCollapsibleGroupBox")
+    self.patientsTableWidget = self.browserWidget.findChild(qt.QTableWidget, "patientsTableWidget")
+    self.studiesCollapsibleGroupBox = self.browserWidget.findChild(ctk.ctkCollapsibleGroupBox, "studiesCollapsibleGroupBox")
+    self.studiesTableWidget = self.browserWidget.findChild(qt.QTableWidget, "studiesTableWidget")
+    self.studiesSelectAllButton = self.browserWidget.findChild(qt.QPushButton, "studiesSelectAllButton")
+    self.studiesSelectNoneButton = self.browserWidget.findChild(qt.QPushButton, "studiesSelectNoneButton")
+    self.seriesCollapsibleGroupBox = self.browserWidget.findChild(ctk.ctkCollapsibleGroupBox, "seriesCollapsibleGroupBox")
+    self.seriesTableWidget = self.browserWidget.findChild(qt.QTableWidget, "seriesTableWidget")
+    self.seriesSelectAllButton = self.browserWidget.findChild(qt.QPushButton, "seriesSelectAllButton")
+    self.seriesSelectNoneButton = self.browserWidget.findChild(qt.QPushButton, "seriesSelectNoneButton")
+    self.imagesCountLabel = self.browserWidget.findChild(qt.QLabel, "imagesCountLabel")
+    self.indexButton = self.browserWidget.findChild(qt.QPushButton, "indexButton")
+    self.loadButton = self.browserWidget.findChild(qt.QPushButton, "loadButton")
+    self.cancelDownloadButton = self.browserWidget.findChild(qt.QPushButton, "cancelDownloadButton")
+    self.statusFrame = self.browserWidget.findChild(qt.QFrame, "statusFrame")
+    self.statusLabel = self.browserWidget.findChild(qt.QLabel, "statusLabel")
 
+    # Set up geometry for browser widget
     self.popupGeometry = qt.QRect()
     settings = qt.QSettings()
     mainWindow = slicer.util.mainWindow()
@@ -239,282 +265,59 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
       self.popupPositioned = False
       self.browserWidget.setGeometry(self.popupGeometry)
 
-    #
-    # Show Browser Button
-    #
-    self.showBrowserButton = qt.QPushButton("Show Browser")
-    # self.showBrowserButton.toolTip = "."
-    self.showBrowserButton.enabled = False
-    self.showBrowserButton.checkable = True
-    browserLayout.addWidget(self.showBrowserButton)
-
-    # Browser Widget Layout within the collapsible button
-    browserWidgetLayout = qt.QVBoxLayout(self.browserWidget)
-
-    # add unified search field
-    searchWidget = qt.QWidget()
-    searchWidgetLayout = qt.QGridLayout(searchWidget)
-    browserWidgetLayout.addWidget(searchWidget)
-
-    label = qt.QLabel('Search:')
-    self.unifiedSearchSelector = ctk.ctkSearchBox()
-    self.unifiedSearchSelector.setPlaceholderText('Enter Collection ID, Patient ID, Study UID, or Series UID')
-    searchWidgetLayout.addWidget(label, 0, 0)
-    searchWidgetLayout.addWidget(self.unifiedSearchSelector, 0, 1)
-
-    # add warning label for no matches
-    self.searchWarningLabel = qt.QLabel('')
-    self.searchWarningLabel.setStyleSheet("QLabel { color: red; font-weight: bold; }")
-    self.searchWarningLabel.hide()
-    searchWidgetLayout.addWidget(self.searchWarningLabel, 1, 0, 1, 2)
-
-    self.collectionsCollapsibleGroupBox = ctk.ctkCollapsibleGroupBox()
-    self.collectionsCollapsibleGroupBox.setTitle('Collections')
-    browserWidgetLayout.addWidget(self.collectionsCollapsibleGroupBox)  #
-    collectionsFormLayout = qt.QHBoxLayout(self.collectionsCollapsibleGroupBox)
-
-    #
-    # Manifest Downloader Area
-    #
-    downloaderCollapsibleButton = ctk.ctkCollapsibleButton()
-    downloaderCollapsibleButton.text = "IDC Portal manifest downloader"
-    self.layout.addWidget(downloaderCollapsibleButton)
-    downloaderLayout = qt.QGridLayout(downloaderCollapsibleButton)
-
-    comment = qt.QTextEdit()
-
-    # Add hyperlink
-    comment.append("You can use this section of the module to download data from Imaging Data Commons based on your selection in <a href=\"http://imaging.datacommons.cancer.gov\">IDC Portal</a>. Populate any of the fields below to download data based on your selection: download manifest created using IDC Portal, or PatientID, StudyInstanceUID or SeriesInstanceUID.<br>")
-    comment.setReadOnly(True)
-
-    downloaderLayout.addWidget(comment, 0, 0, 1, 4)
-
-    # TODO: add automatic check for the validity of the entered text
-
-    # add manifest file selector
-    label = qt.QLabel('s5cmd manifest:')
-    self.manifestSelector = ctk.ctkPathLineEdit()
-    self.downloadFromManifestButton = qt.QPushButton("D")
-    self.downloadAndIndexFromManifestButton = qt.QPushButton("DI")
-    downloaderLayout.addWidget(label, 1, 0)
-    downloaderLayout.addWidget(self.manifestSelector, 1, 1)
-    #downloaderLayout.addWidget(self.downloadFromManifestButton, 1, 2)
-    #downloaderLayout.addWidget(self.downloadAndIndexFromManifestButton, 1, 3)
-
-    # add output directory selector
-    label = qt.QLabel('Download directory:')
-    self.downloadDestinationSelector = ctk.ctkDirectoryButton()
-    self.downloadDestinationSelector.setSizePolicy(qt.QSizePolicy.Ignored, qt.QSizePolicy.Preferred)
-    self.downloadDestinationSelector.caption = 'Output directory'
-    self.downloadDestinationSelector.directory = self.storagePath
-    downloaderLayout.addWidget(label, 4, 0)
-    downloaderLayout.addWidget(self.downloadDestinationSelector, 4, 1, 1, 3)
-
-    #
-    # Collection Selector ComboBox
-    #
-    self.collectionSelectorLabel = qt.QLabel('Select collection:')
-    collectionsFormLayout.addWidget(self.collectionSelectorLabel)
-    # Selector ComboBox
-    self.collectionSelector = qt.QComboBox()
-    self.collectionSelector.setMinimumWidth(200)
-    self.collectionSelector.setEditable(True)
-    self.collectionSelector.setInsertPolicy(qt.QComboBox.NoInsert)
-    collectionsFormLayout.addWidget(self.collectionSelector)
-
     # Set up QCompleter for auto-completion
     self.collectionCompleter = qt.QCompleter()
     self.collectionCompleter.setCaseSensitivity(qt.Qt.CaseInsensitive)
     self.collectionCompleter.setCompletionMode(qt.QCompleter.PopupCompletion)
     self.collectionCompleter.setFilterMode(qt.Qt.MatchContains)
+    self.collectionCompleter.setModel(qt.QStringListModel())
     self.collectionSelector.setCompleter(self.collectionCompleter)
 
-    collectionsFormLayout.addStretch(4)
+    # Update logo label with IDC version
     logoLabelText = "IDC release "+self.logic.idc_version
-    self.logoLabel = qt.QLabel(logoLabelText)
-    collectionsFormLayout.addWidget(self.logoLabel)
+    self.logoLabel.text = logoLabelText
 
-    #Patient Table Widget
+    # Set download destination
+    self.downloadDestinationSelector.directory = self.storagePath
 
-    self.patientsCollapsibleGroupBox = ctk.ctkCollapsibleGroupBox()
-    self.patientsCollapsibleGroupBox.setTitle('Patients')
-    browserWidgetLayout.addWidget(self.patientsCollapsibleGroupBox)
-    patientsVBoxLayout1 = qt.QVBoxLayout(self.patientsCollapsibleGroupBox)
-    patientsExpdableArea = ctk.ctkExpandableWidget()
-    patientsVBoxLayout1.addWidget(patientsExpdableArea)
-    patientsVBoxLayout2 = qt.QVBoxLayout(patientsExpdableArea)
-    # patientsVerticalLayout = qt.QVBoxLayout(patientsExpdableArea)
-    self.patientsTableWidget = qt.QTableWidget()
-    self.patientsTableWidget.setAlternatingRowColors(True)
+    # Configure table widgets
     self.patientsModel = qt.QStandardItemModel()
     self.patientsTableHeaderLabels = ['Patient ID', 'Patient Sex', 'Patient Age']
-    self.patientsTableWidget.setColumnCount(3)
-    self.patientsTableWidget.sortingEnabled = True
-    self.patientsTableWidget.setHorizontalHeaderLabels(self.patientsTableHeaderLabels)
     self.patientsTableWidgetHeader = self.patientsTableWidget.horizontalHeader()
-    self.patientsTableWidgetHeader.setStretchLastSection(True)
-    # patientsTableWidgetHeader.setResizeMode(qt.QHeaderView.Stretch)
-    patientsVBoxLayout2.addWidget(self.patientsTableWidget)
     self.patientsTreeSelectionModel = self.patientsTableWidget.selectionModel()
     abstractItemView = qt.QAbstractItemView()
     self.patientsTableWidget.setSelectionBehavior(abstractItemView.SelectRows)
     verticalheader = self.patientsTableWidget.verticalHeader()
     verticalheader.setDefaultSectionSize(20)
-    patientsVBoxLayout1.setSpacing(0)
-    patientsVBoxLayout2.setSpacing(0)
-    patientsVBoxLayout1.setMargin(0)
-    patientsVBoxLayout2.setContentsMargins(7, 3, 7, 7)
 
-    #
-    # Studies Table Widget
-    #
-    self.studiesCollapsibleGroupBox = ctk.ctkCollapsibleGroupBox()
-    self.studiesCollapsibleGroupBox.setTitle('Studies')
-    browserWidgetLayout.addWidget(self.studiesCollapsibleGroupBox)
-    studiesVBoxLayout1 = qt.QVBoxLayout(self.studiesCollapsibleGroupBox)
-    studiesExpdableArea = ctk.ctkExpandableWidget()
-    studiesVBoxLayout1.addWidget(studiesExpdableArea)
-    studiesVBoxLayout2 = qt.QVBoxLayout(studiesExpdableArea)
-    self.studiesTableWidget = qt.QTableWidget()
-    self.studiesTableWidget.setAlternatingRowColors(True)
-    self.studiesTableWidget.setCornerButtonEnabled(True)
     self.studiesModel = qt.QStandardItemModel()
     self.studiesTableHeaderLabels = ['Study Instance UID', 'Study Date', 'Study Description', 'Series Count']
-    self.studiesTableWidget.setColumnCount(4)
-    self.studiesTableWidget.sortingEnabled = True
     self.studiesTableWidget.hideColumn(0)
-    self.studiesTableWidget.setHorizontalHeaderLabels(self.studiesTableHeaderLabels)
-    self.studiesTableWidget.resizeColumnsToContents()
-    studiesVBoxLayout2.addWidget(self.studiesTableWidget)
     self.studiesTreeSelectionModel = self.studiesTableWidget.selectionModel()
     self.studiesTableWidget.setSelectionBehavior(abstractItemView.SelectRows)
     studiesVerticalheader = self.studiesTableWidget.verticalHeader()
     studiesVerticalheader.setDefaultSectionSize(20)
     self.studiesTableWidgetHeader = self.studiesTableWidget.horizontalHeader()
-    self.studiesTableWidgetHeader.setStretchLastSection(True)
 
-    studiesSelectOptionsWidget = qt.QWidget()
-    studiesSelectOptionsLayout = qt.QHBoxLayout(studiesSelectOptionsWidget)
-    studiesSelectOptionsLayout.setMargin(0)
-    studiesVBoxLayout2.addWidget(studiesSelectOptionsWidget)
-    studiesSelectLabel = qt.QLabel('Select:')
-    studiesSelectOptionsLayout.addWidget(studiesSelectLabel)
-    self.studiesSelectAllButton = qt.QPushButton('All')
-    self.studiesSelectAllButton.enabled = False
-    self.studiesSelectAllButton.setMaximumWidth(50)
-    studiesSelectOptionsLayout.addWidget(self.studiesSelectAllButton)
-    self.studiesSelectNoneButton = qt.QPushButton('None')
-    self.studiesSelectNoneButton.enabled = False
-    self.studiesSelectNoneButton.setMaximumWidth(50)
-    studiesSelectOptionsLayout.addWidget(self.studiesSelectNoneButton)
-    studiesSelectOptionsLayout.addStretch(1)
-    studiesVBoxLayout1.setSpacing(0)
-    studiesVBoxLayout2.setSpacing(0)
-    studiesVBoxLayout1.setMargin(0)
-    studiesVBoxLayout2.setContentsMargins(7, 3, 7, 7)
-
-    #
-    # Series Table Widget
-    #
-    self.seriesCollapsibleGroupBox = ctk.ctkCollapsibleGroupBox()
-    self.seriesCollapsibleGroupBox.setTitle('Series')
-    browserWidgetLayout.addWidget(self.seriesCollapsibleGroupBox)
-    seriesVBoxLayout1 = qt.QVBoxLayout(self.seriesCollapsibleGroupBox)
-    seriesExpdableArea = ctk.ctkExpandableWidget()
-    seriesVBoxLayout1.addWidget(seriesExpdableArea)
-    seriesVBoxLayout2 = qt.QVBoxLayout(seriesExpdableArea)
-    self.seriesTableWidget = qt.QTableWidget()
-    self.seriesTableWidget.setAlternatingRowColors(True)
-    # self.seriesModel = qt.QStandardItemModel()
-    self.seriesTableWidget.setColumnCount(10)
-    self.seriesTableWidget.sortingEnabled = True
-    self.seriesTableWidget.hideColumn(0)
     self.seriesTableHeaderLabels = ['Series Instance UID', 'Status', 'Modality',
                     'Series Date', 'Series Description', 'Body Part Examined',
                     'Series Number','Manufacturer',
                     'Manufacturer Model Name','Instance Count']
-    self.seriesTableWidget.setHorizontalHeaderLabels(self.seriesTableHeaderLabels)
-    self.seriesTableWidget.resizeColumnsToContents()
-    seriesVBoxLayout2.addWidget(self.seriesTableWidget)
+    self.seriesTableWidget.hideColumn(0)
     self.seriesTreeSelectionModel = self.studiesTableWidget.selectionModel()
     self.seriesTableWidget.setSelectionBehavior(abstractItemView.SelectRows)
-    self.seriesTableWidget.setSelectionMode(3)
-    self.seriesTableWidgetHeader = self.seriesTableWidget.horizontalHeader()
-    self.seriesTableWidgetHeader.setStretchLastSection(True)
-    # seriesTableWidgetHeader.setResizeMode(qt.QHeaderView.Stretch)
     seriesVerticalheader = self.seriesTableWidget.verticalHeader()
     seriesVerticalheader.setDefaultSectionSize(20)
+    self.seriesTableWidgetHeader = self.seriesTableWidget.horizontalHeader()
 
-    seriesSelectOptionsWidget = qt.QWidget()
-    seriesSelectOptionsLayout = qt.QHBoxLayout(seriesSelectOptionsWidget)
-    seriesVBoxLayout2.addWidget(seriesSelectOptionsWidget)
-    seriesSelectOptionsLayout.setMargin(0)
-    seriesSelectLabel = qt.QLabel('Select:')
-    seriesSelectOptionsLayout.addWidget(seriesSelectLabel)
-    self.seriesSelectAllButton = qt.QPushButton('All')
-    self.seriesSelectAllButton.enabled = False
-    self.seriesSelectAllButton.setMaximumWidth(50)
-    seriesSelectOptionsLayout.addWidget(self.seriesSelectAllButton)
-    self.seriesSelectNoneButton = qt.QPushButton('None')
-    self.seriesSelectNoneButton.enabled = False
-    self.seriesSelectNoneButton.setMaximumWidth(50)
-    seriesSelectOptionsLayout.addWidget(self.seriesSelectNoneButton)
-    seriesVBoxLayout1.setSpacing(0)
-    seriesVBoxLayout2.setSpacing(0)
-    seriesVBoxLayout1.setMargin(0)
-    seriesVBoxLayout2.setContentsMargins(7, 3, 7, 7)
-
-    seriesSelectOptionsLayout.addStretch(1)
-    self.imagesCountLabel = qt.QLabel()
-    self.imagesCountLabel.text = 'No. of images to download: ' + '<span style=" font-size:8pt; font-weight:600; ' \
-                    'color:#aa0000;">' + str(self.imagesToDownloadCount) + '</span>' + ' '
-    seriesSelectOptionsLayout.addWidget(self.imagesCountLabel)
-    # seriesSelectOptionsLayout.setAlignment(qt.Qt.AlignTop)
-
-    # Index Button
-    #
-    self.indexButton = qt.QPushButton()
-    self.indexButton.setMinimumWidth(50)
-    self.indexButton.toolTip = "Download and Index: The browser will download" \
-                   " the selected series and index them in 3D Slicer DICOM Database."
-    self.indexButton.setIcon(downloadAndIndexIcon)
+    # Set icons for buttons
     iconSize = qt.QSize(70, 40)
+    self.indexButton.setIcon(downloadAndIndexIcon)
     self.indexButton.setIconSize(iconSize)
-    # self.indexButton.setMinimumHeight(50)
-    self.indexButton.enabled = False
-    # downloadWidgetLayout.addStretch(4)
-    seriesSelectOptionsLayout.addWidget(self.indexButton)
-
-    # downloadWidgetLayout.addStretch(1)
-    #
-    # Load Button
-    #
-    self.loadButton = qt.QPushButton("")
-    self.loadButton.setMinimumWidth(50)
     self.loadButton.setIcon(downloadAndLoadIcon)
     self.loadButton.setIconSize(iconSize)
-    # self.loadButton.setMinimumHeight(50)
-    self.loadButton.toolTip = "Download and Load: The browser will download" \
-                  " the selected series and Load them in 3D Slicer scene."
-    self.loadButton.enabled = False
-    seriesSelectOptionsLayout.addWidget(self.loadButton)
-    # downloadWidgetLayout.addStretch(4)
-
-    self.cancelDownloadButton = qt.QPushButton('')
-    seriesSelectOptionsLayout.addWidget(self.cancelDownloadButton)
-    self.cancelDownloadButton.setIconSize(iconSize)
-    self.cancelDownloadButton.toolTip = "Cancel all downloads."
     self.cancelDownloadButton.setIcon(cancelIcon)
-    self.cancelDownloadButton.enabled = False
-
-    self.statusFrame = qt.QFrame()
-    browserWidgetLayout.addWidget(self.statusFrame)
-    statusHBoxLayout = qt.QHBoxLayout(self.statusFrame)
-    statusHBoxLayout.setMargin(0)
-    statusHBoxLayout.setSpacing(0)
-    self.statusLabel = qt.QLabel('')
-    statusHBoxLayout.addWidget(self.statusLabel)
-    statusHBoxLayout.addStretch(1)
+    self.cancelDownloadButton.setIconSize(iconSize)
 
     #
     # delete data context menu
@@ -524,54 +327,23 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.seriesTableWidget.addAction(self.removeSeriesAction)
     # self.removeSeriesAction.enabled = False
 
-    # Download progress bar
-    self.downloadProgressBar = qt.QProgressBar()
-    self.layout.addWidget(self.downloadProgressBar)
-
-    #
-    # Settings Area
-    #
-    settingsCollapsibleButton = ctk.ctkCollapsibleButton()
-    settingsCollapsibleButton.text = "Settings"
-    self.layout.addWidget(settingsCollapsibleButton)
-    settingsGridLayout = qt.QGridLayout(settingsCollapsibleButton)
-    settingsCollapsibleButton.collapsed = True
-
-    # Storage Path button
-    #
-    # storageWidget = qt.QWidget()
-    # storageFormLayout = qt.QFormLayout(storageWidget)
-    # settingsVBoxLayout.addWidget(storageWidget)
-
-    storagePathLabel = qt.QLabel("Storage Folder: ")
-    storagePathLabel.setSizePolicy(qt.QSizePolicy.Fixed, qt.QSizePolicy.Preferred)
-    self.storagePathButton = ctk.ctkDirectoryButton()
-    self.storagePathButton.setSizePolicy(qt.QSizePolicy.Ignored, qt.QSizePolicy.Preferred)
+    # Configure storage path and settings
     self.storagePathButton.directory = self.storagePath
-    self.storageResetButton = qt.QPushButton("Reset Path")
-    self.storageResetButton.toolTip = "Resetting the storage folder to default."
     self.storageResetButton.enabled  = True if self.settings.contains("IDCCustomStoragePath") else False
-    settingsGridLayout.addWidget(storagePathLabel, 0, 0, 1, 1)
-    settingsGridLayout.addWidget(self.storagePathButton, 0, 1, 1, 2)
-    settingsGridLayout.addWidget(self.storageResetButton, 0, 3, 1, 1)
 
-    # Toggle web widget visibility
-    self.webWidgetCheckBox = qt.QCheckBox()
-    settingsGridLayout.addWidget(qt.QLabel("Show IDC portal tab:"), 1, 0, 1, 3)
-    settingsGridLayout.addWidget(self.webWidgetCheckBox, 1, 1, 1, 2)
+    # Configure web widget checkbox
     self.webWidgetCheckBox.checked = slicer.util.settingsValue("IDCBrowser/ShowWebWidget", False, converter=slicer.util.toBool)
     # only show if developer mode is enabled
     if not self.developerMode:
       self.webWidgetCheckBox.hide()
 
-    # connections
+    # Connect signals
     self.showBrowserButton.connect('clicked(bool)', self.onShowBrowserButton)
     self.unifiedSearchSelector.connect('textChanged(QString)', self.onUnifiedSearchTextChanged)
     self.collectionSelector.connect('currentIndexChanged(QString)', self.collectionSelected)
     self.patientsTableWidget.connect('itemSelectionChanged()', self.patientsTableSelectionChanged)
     self.studiesTableWidget.connect('itemSelectionChanged()', self.studiesTableSelectionChanged)
     self.seriesTableWidget.connect('itemSelectionChanged()', self.seriesSelected)
-    #self.useCacheCeckBox.connect('stateChanged(int)', self.onUseCacheStateChanged)
     self.indexButton.connect('clicked(bool)', self.onIndexButton)
     self.loadButton.connect('clicked(bool)', self.onLoadButton)
     self.cancelDownloadButton.connect('clicked(bool)', self.onCancelDownloadButton)
@@ -583,6 +355,9 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.studiesSelectAllButton.connect('clicked(bool)', self.onStudiesSelectAllButton)
     self.studiesSelectNoneButton.connect('clicked(bool)', self.onStudiesSelectNoneButton)
     self.webWidgetCheckBox.connect('toggled(bool)', self.onWebWidgetToggled)
+
+    # Hide the progress bar initially
+    self.hideProgressBar()
 
     # This variable is set to true if we temporarily
     # hide the data probe (and so we need to restore its visibility).
@@ -643,15 +418,14 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.webWidget.loadProgress.connect(lambda p: self.webWidget.evalJS(updateStyleJS))
     self.webWidget.url = qt.QUrl("https://portal.imaging.datacommons.cancer.gov/explore/")
 
+    # Create tab widget for browser and web portal
     self.tabWidget = qt.QTabWidget()
     self.tabWidget.setObjectName("IDCBrowserTabWidget")
     self.tabWidget.addTab(self.browserWidget, "Local Browser")
     self.tabWidget.addTab(self.webWidget, "IDC Portal")
     self.viewFactory.setWidget(self.tabWidget)
 
-    # Add vertical spacer
-    self.layout.addStretch(1)
-
+    # Initialize browser
     if self.showBrowserButton != None and self.showBrowserButton.enabled:
       self.showBrowser()
     if not self.initialConnection:
@@ -1495,8 +1269,20 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
   def populateCollectionsTreeView(self, responseString):
       collectionNames = sorted(responseString)
 
+      savedCollection = self.collectionSelector.currentText
+
+      wasBlocked = self.collectionSelector.blockSignals(True)
       self.collectionSelector.clear()
       self.collectionSelector.addItems(collectionNames)
+      self.collectionSelector.blockSignals(wasBlocked)
+
+      if savedCollection in collectionNames:
+        index = self.collectionSelector.findText(savedCollection)
+        self.collectionSelector.setCurrentIndex(index)
+      else:
+        # Select the first collection
+        self.collectionSelector.setCurrentIndex(-1) # temporarily set to -1 to force change
+        self.collectionSelector.setCurrentIndex(0)
 
       # Set up the completer with the same items
       self.collectionCompleter.setModel(self.collectionSelector.model())
