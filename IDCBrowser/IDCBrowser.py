@@ -846,6 +846,11 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.clearStudiesTableWidget()
     self.clearSeriesTableWidget()
     self.selectedCollection = item
+
+    # Check if a valid collection is selected
+    if not self.selectedCollection:
+      return
+
     cacheFile = self.cachePath + self.selectedCollection + '.json'
     self.progressMessage = "Getting available patients for collection: " + self.selectedCollection
 
