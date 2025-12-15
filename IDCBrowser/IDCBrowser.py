@@ -476,7 +476,8 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.pythonRequirementsCheckTimer.stop()
 
     requiredLibraries = [
-      "idc-index"
+      "idc-index",
+      "idc-index-data"
     ]
 
     outdatedLibraries = []
@@ -1521,8 +1522,22 @@ class IDCBrowserLogic(ScriptedLoadableModuleLogic):
         userMessage = "The module requires idc-index python package, which will now be installed."
       logging.info(userMessage)
       with slicer.util.displayPythonShell() as shell, slicer.util.tryWithErrorDisplay(message=errorMessage, waitCursor=True) as errorDisplay:
-        slicer.util.pip_install(f"{'--upgrade ' if update else ''}idc-index>=0.7.0")
+        if update:
+          slicer.util.pip_install("--no-cache-dir --upgrade idc-index")
+          slicer.util.pip_install("--no-cache-dir --upgrade idc-index-data")
+        else:
+          slicer.util.pip_install("idc-index idc-index-data")
         installed = True
+
+        import importlib
+        # Force reload of the module to pick up the new version
+        if 'idc_index' in sys.modules:
+          import idc_index
+          importlib.reload(idc_index)
+        if 'idc_index.index' in sys.modules:
+          from idc_index import index
+          importlib.reload(index)
+
     else:
       installed = True
 
