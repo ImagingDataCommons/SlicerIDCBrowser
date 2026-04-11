@@ -1102,6 +1102,8 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
         self.downloadQueue[selectedSeries] = self.storagePath
         self.seriesRowNumber[selectedSeries] = n
 
+    self.addReferencedSeriesToDownloadQueue(allSelectedSeriesUIDs)
+
     self.seriesTableWidget.clearSelection()
     self.patientsTableWidget.enabled = False
     self.studiesTableWidget.enabled = False
@@ -1142,6 +1144,141 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
           " series into the Slicer scene. You can retry loading from DICOM Browser!"
         qt.QMessageBox.critical(slicer.util.mainWindow(),
                     'SlicerIDCBrowser', message, qt.QMessageBox.Ok)
+
+  def addReferencedSeriesToDownloadQueue(self, selectedSeriesUIDs):
+    referencedSeriesMap = self.getReferencedSeriesForSelection(selectedSeriesUIDs)
+    if not referencedSeriesMap:
+      return
+
+    referenceCount = len(referencedSeriesMap["orderedReferenceUIDs"])
+    modalityBySeriesUID = self.getSeriesMetadataLookup("Modality")
+    descriptionBySeriesUID = self.getSeriesMetadataLookup("SeriesDescription")
+    promptLines = [
+      "The selected SEG/RTSTRUCT series reference {} additional image series.".format(referenceCount),
+      "Would you like to download those referenced series too?",
+      ""
+    ]
+
+    previewCount = 0
+    for referencedUID, sourceUIDs in referencedSeriesMap["sourceSeriesUIDsByReference"].items():
+      if previewCount >= 5:
+        break
+      referencedSummary = self.describeSeriesForPrompt(referencedUID, modalityBySeriesUID, descriptionBySeriesUID)
+      sourceSummary = ", ".join(sorted(self.describeSeriesForPrompt(sourceUID, modalityBySeriesUID, descriptionBySeriesUID) for sourceUID in sourceUIDs))
+      promptLines.append("{} referenced by {}".format(referencedSummary, sourceSummary))
+      previewCount += 1
+
+    if referenceCount > previewCount:
+      promptLines.append("...and {} more referenced series.".format(referenceCount - previewCount))
+
+    response = qt.QMessageBox.question(
+      slicer.util.mainWindow(),
+      'SlicerIDCBrowser',
+      "\n".join(promptLines),
+      qt.QMessageBox.Yes | qt.QMessageBox.No,
+      qt.QMessageBox.Yes
+      )
+
+    if response != qt.QMessageBox.Yes:
+      return
+
+    for referencedUID in referencedSeriesMap["orderedReferenceUIDs"]:
+      self.downloadQueue[referencedUID] = self.storagePath
+
+  def getReferencedSeriesForSelection(self, selectedSeriesUIDs):
+    selectedUIDs = [uid for uid in selectedSeriesUIDs if uid]
+    if not selectedUIDs:
+      return None
+
+    modalityBySeriesUID = self.getSeriesMetadataLookup("Modality")
+    selectedUIDSet = set(selectedUIDs)
+    referenceUIDsBySource = {}
+
+    modalityTableSpecs = {
+      "SEG": ("seg_index", "segmented_SeriesInstanceUID"),
+      "RTSTRUCT": ("rtstruct_index", "referenced_SeriesInstanceUID"),
+    }
+
+    for modality, (tableName, referenceColumn) in modalityTableSpecs.items():
+      modalitySeriesUIDs = [uid for uid in selectedUIDs if modalityBySeriesUID.get(uid) == modality]
+      if not modalitySeriesUIDs:
+        continue
+      referencesForModality = self.queryReferencedSeriesUIDs(modalitySeriesUIDs, tableName, referenceColumn)
+      for sourceUID, referencedUID in referencesForModality:
+        if not referencedUID or referencedUID in selectedUIDSet:
+          continue
+        if referencedUID not in modalityBySeriesUID:
+          logging.warning("Referenced series %s for %s was not found in IDCClient.index", referencedUID, sourceUID)
+          continue
+        referenceUIDsBySource.setdefault(sourceUID, set()).add(referencedUID)
+
+    if not referenceUIDsBySource:
+      return None
+
+    sourceSeriesUIDsByReference = {}
+    orderedReferenceUIDs = []
+    for sourceUID in selectedUIDs:
+      for referencedUID in sorted(referenceUIDsBySource.get(sourceUID, [])):
+        if referencedUID not in sourceSeriesUIDsByReference:
+          sourceSeriesUIDsByReference[referencedUID] = set()
+          orderedReferenceUIDs.append(referencedUID)
+        sourceSeriesUIDsByReference[referencedUID].add(sourceUID)
+
+    if not orderedReferenceUIDs:
+      return None
+
+    return {
+      "orderedReferenceUIDs": orderedReferenceUIDs,
+      "sourceSeriesUIDsByReference": sourceSeriesUIDsByReference,
+    }
+
+  def queryReferencedSeriesUIDs(self, sourceSeriesUIDs, tableName, referenceColumn):
+    try:
+      self.IDCClient.fetch_index(tableName)
+      quotedSeriesUIDs = ", ".join(self.quoteSqlString(uid) for uid in sourceSeriesUIDs)
+      query = """
+        SELECT SeriesInstanceUID, {referenceColumn}
+        FROM {tableName}
+        WHERE SeriesInstanceUID IN ({quotedSeriesUIDs})
+          AND {referenceColumn} IS NOT NULL
+          AND {referenceColumn} != ''
+      """.format(
+        referenceColumn=referenceColumn,
+        tableName=tableName,
+        quotedSeriesUIDs=quotedSeriesUIDs
+      )
+      results = self.IDCClient.sql_query(query)
+      return [
+        (str(row["SeriesInstanceUID"]), str(row[referenceColumn]))
+        for _, row in results.iterrows()
+      ]
+    except Exception as error:
+      logging.warning("Failed to query %s for referenced series: %s", tableName, error)
+      return []
+
+  def getSeriesMetadataLookup(self, columnName):
+    try:
+      if columnName not in self.IDCClient.index.columns:
+        return {}
+      metadataSeries = self.IDCClient.index.set_index("SeriesInstanceUID")[columnName]
+      return metadataSeries.to_dict()
+    except Exception as error:
+      logging.warning("Failed to build %s lookup: %s", columnName, error)
+      return {}
+
+  def describeSeriesForPrompt(self, seriesUID, modalityBySeriesUID=None, descriptionBySeriesUID=None):
+    if modalityBySeriesUID is None:
+      modalityBySeriesUID = self.getSeriesMetadataLookup("Modality")
+    if descriptionBySeriesUID is None:
+      descriptionBySeriesUID = self.getSeriesMetadataLookup("SeriesDescription")
+    modality = modalityBySeriesUID.get(seriesUID, "Series")
+    description = descriptionBySeriesUID.get(seriesUID)
+    if description and description != "None":
+      return "{} ({})".format(modality, description)
+    return "{} ({})".format(modality, seriesUID)
+
+  def quoteSqlString(self, value):
+    return "'" + str(value).replace("'", "''") + "'"
 
   def downloadSelectedSeries(self):
 
@@ -1197,10 +1334,11 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
         for selectedSeries in self.downloadQueue.keys():
           self.previouslyDownloadedSeries.append(selectedSeries)
-          n = self.seriesRowNumber[selectedSeries]
-          table = self.seriesTableWidget
-          item = table.item(n, 1)
-          item.setIcon(self.storedlIcon)
+          if selectedSeries in self.seriesRowNumber:
+            n = self.seriesRowNumber[selectedSeries]
+            table = self.seriesTableWidget
+            item = table.item(n, 1)
+            item.setIcon(self.storedlIcon)
 
       except Exception as error:
         import traceback
