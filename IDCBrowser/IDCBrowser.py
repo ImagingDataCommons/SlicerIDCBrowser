@@ -392,6 +392,10 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
     updateStyleJS = """
 (function injectCSS() {
+  const target = document.head || document.documentElement || document.body;
+  if (!target) {
+    return;
+  }
   const css = `
     .site-header,
     .page-heading,
@@ -411,7 +415,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     const s = document.createElement('style');
     s.id = 'hide-hf-style';
     s.textContent = css;
-    (document.head || document.documentElement).appendChild(s);
+    target.appendChild(s);
   }
 })();
 """
@@ -846,6 +850,15 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.clearStudiesTableWidget()
     self.clearSeriesTableWidget()
     self.selectedCollection = item
+
+    if not self.selectedCollection:
+      self.logoLabel.setText("IDC release " + self.logic.idc_version)
+      return
+    if self.selectedCollection not in self.IDCClient.collection_summary.index:
+      logging.warning("collectionSelected: unknown collection '%s'", self.selectedCollection)
+      self.logoLabel.setText("IDC release " + self.logic.idc_version)
+      return
+
     cacheFile = self.cachePath + self.selectedCollection + '.json'
     self.progressMessage = "Getting available patients for collection: " + self.selectedCollection
 
