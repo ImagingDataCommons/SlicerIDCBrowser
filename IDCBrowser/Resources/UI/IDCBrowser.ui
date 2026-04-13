@@ -45,7 +45,7 @@
          <string>Update required Python libraries and restart.</string>
         </property>
         <property name="text">
-         <string>Restart</string>
+         <string>Update and restart</string>
         </property>
        </widget>
       </item>
