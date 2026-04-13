@@ -81,9 +81,8 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
       self.modulePath = '.'
 
     logging.info("Checking requirements ...")
-    update = slicer.util.settingsValue("IDCBrowser/PipUpdateRequested", False, converter=slicer.util.toBool)
-    if self.logic.setupPythonRequirements(update):
-      self.settings.setValue("IDCBrowser/PipUpdateRequested", False)
+    if not self.logic.setupPythonRequirements():
+      return
 
     from idc_index import index
 
@@ -226,7 +225,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
     # Update widgets with dynamic content
     self.browserCollapsibleButton.text = "SlicerIDCBrowser | NCI Imaging Data Commons data release " + self.logic.idc_version
-    self.updateAndRestartButton.connect('clicked(bool)', slicer.util.restart)
+    self.updateAndRestartButton.connect('clicked(bool)', self.onUpdateAndRestartButton)
     self.updateUpgradeRequiredWidget()
 
     # Get references to browser widget UI elements
@@ -443,19 +442,30 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     else:
       self.updateRequiredWidget.hide()
 
+  def onUpdateAndRestartButton(self):
+    with slicer.util.displayPythonShell() as shell, slicer.util.tryWithErrorDisplay(message="Failed to update idc-index.", waitCursor=True):
+      slicer.util.pip_install("--no-cache-dir --upgrade idc-index")
+      self.settings.setValue("IDCBrowser/PipUpdateRequested", False)
+      slicer.util.restart()
+
   def startPythonRequirementsCheck(self):
-    """
-    Rather than hanging the GUI to check if any of the libraries need to be updated,
-    we will launch a separate process to check for outdated libraries.
-    """
+    logging.debug("Starting python check")
     pythonSlicerExecutablePath = os.path.dirname(sys.executable) + "/PythonSlicer"
     if os.name == "nt":
-      pythonSlicerExecutablePath += ".exe"
+        pythonSlicerExecutablePath += ".exe"
 
     commandLine = [pythonSlicerExecutablePath, "-m", "pip", "list", "--outdated"]
-    self.pipOutdatedLibrariesProc = slicer.util.launchConsoleProcess(commandLine, useStartupEnvironment=False)
 
-    # Check the status/result of the pip list --outdated call every 1 second. Until it is completed.
+    import subprocess, tempfile
+    self.pipOutdatedLibrariesOutputFile = tempfile.TemporaryFile()
+    startupEnv = slicer.util.startupEnvironment()
+    self.pipOutdatedLibrariesProc = subprocess.Popen(
+        commandLine,
+        stdout=self.pipOutdatedLibrariesOutputFile,
+        stderr=subprocess.DEVNULL,
+        env=startupEnv,
+    )
+
     self.pythonRequirementsCheckTimer = qt.QTimer()
     self.pythonRequirementsCheckTimer.setInterval(1000)
     self.pythonRequirementsCheckTimer.connect('timeout()', self.onPythonRequirementsCheckTimeout)
@@ -463,30 +473,30 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.pythonRequirementsCheckTimer.start()
 
   def onPythonRequirementsCheckTimeout(self):
-    """
-    Check if the pip outdated libraries process has finished.
-    If it has, read the output and check if required libraries are listed as outdated.
-    """
     returnCode = self.pipOutdatedLibrariesProc.poll()
     if returnCode is None:
-      # Process is still running
-      return
+        return
 
-    outdatedLibrariesOutput = self.pipOutdatedLibrariesProc.stdout.read()
     self.pythonRequirementsCheckTimer.stop()
+
+    self.pipOutdatedLibrariesOutputFile.seek(0)
+    outdatedLibrariesOutput = self.pipOutdatedLibrariesOutputFile.read().decode()
+    self.pipOutdatedLibrariesOutputFile.close()
 
     requiredLibraries = [
       "idc-index"
     ]
-
     outdatedLibraries = []
-    for requiredLibrary in requiredLibraries:
-      if requiredLibrary in outdatedLibrariesOutput:
-        outdatedLibraries.append(requiredLibrary)
+    for line in outdatedLibrariesOutput.splitlines():
+      parts = line.split()
+      if len(parts) >= 1 and parts[0] in requiredLibraries:
+          outdatedLibraries.append(parts[0])
 
     if len(outdatedLibraries) > 0:
       logging.info(f"Required libraries are outdated: {outdatedLibraries}, updating on restart")
       self.settings.setValue("IDCBrowser/PipUpdateRequested", True)
+    else:
+      logging.info("Required libraries are up to date")
 
     self.updateUpgradeRequiredWidget()
 
@@ -1506,31 +1516,18 @@ class IDCBrowserLogic(ScriptedLoadableModuleLogic):
     self.idc_version = None
     pass
 
-  def setupPythonRequirements(self, update=False):
-    needToInstall = False
+  def setupPythonRequirements(self):
     try:
-        import idc_index
-    except ModuleNotFoundError as e:
-      needToInstall=True
+      import idc_index
+    except ModuleNotFoundError:
+      logging.info("The module requires idc-index python package, which will now be installed.")
+      with slicer.util.displayPythonShell() as shell, slicer.util.tryWithErrorDisplay(message="Failed to install idc-index.", waitCursor=True):
+        slicer.util.pip_install("idc-index")
 
-    installed = False
-    if needToInstall or update:
-      userMessage = "The current idc-index python package is out of date, and will now be updated."
-      errorMessage = f"Failed to {'install' if needToInstall else 'update'} idc-index."
-      if needToInstall:
-        userMessage = "The module requires idc-index python package, which will now be installed."
-      logging.info(userMessage)
-      with slicer.util.displayPythonShell() as shell, slicer.util.tryWithErrorDisplay(message=errorMessage, waitCursor=True) as errorDisplay:
-        slicer.util.pip_install(f"{'--upgrade ' if update else ''}idc-index>=0.7.0")
-        installed = True
-    else:
-      installed = True
-
-    if installed or not needToInstall:
-      from idc_index import index
-      self.idc_index_location = index.__file__
-      self.idc_version = index.IDCClient.get_idc_version()
-    return installed
+    from idc_index import index
+    self.idc_index_location = index.__file__
+    self.idc_version = index.IDCClient.get_idc_version()
+    return True
 
   def hasImageData(self, volumeNode):
     """This is a dummy logic method that
