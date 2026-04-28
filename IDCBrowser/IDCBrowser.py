@@ -1732,10 +1732,10 @@ class IDCBrowserLogic(ScriptedLoadableModuleLogic):
 
   def run(self, inputVolume, outputVolume, enableScreenshots=0, screenshotScaleFactor=1):
     """
-    Run the actual algorithm
+    Run the actual task
     """
 
-    self.delayDisplay('Running the algorithm')
+    self.delayDisplay('Running the task')
 
     self.enableScreenshots = enableScreenshots
     self.screenshotScaleFactor = screenshotScaleFactor
