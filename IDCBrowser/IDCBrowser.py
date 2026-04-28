@@ -362,20 +362,31 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.currentViewArrangement = 0
     self.previousViewArrangement = 0
     self.IDCBrowserLayout = slicer.vtkMRMLLayoutNode.SlicerLayoutUserView + 53
-    self.viewFactory = slicer.qSlicerSingletonViewFactory()
-    self.viewFactory.setTagName("idcbrowser")
+
+    # Reuse the view factory across reloads: unregisterViewFactory is not
+    # exposed in the Python binding, so creating a new factory on each reload
+    # would accumulate stale registrations and break the browser view.
+    if hasattr(slicer.modules, '_IDCBrowserViewFactory'):
+      self.viewFactory = slicer.modules._IDCBrowserViewFactory
+    else:
+      self.viewFactory = slicer.qSlicerSingletonViewFactory()
+      self.viewFactory.setTagName("idcbrowser")
+      if layoutManager:
+        layoutManager.registerViewFactory(self.viewFactory)
+        layout = ("""
+            <layout type="horizontal">
+             <item>
+              <idcbrowser></idcbrowser>
+             </item>
+            </layout>"""
+        )
+        layoutNode = layoutManager.layoutLogic().GetLayoutNode()
+        layoutNode.AddLayoutDescription(self.IDCBrowserLayout, layout)
+      slicer.modules._IDCBrowserViewFactory = self.viewFactory
+
     if layoutManager:
-      layoutManager.registerViewFactory(self.viewFactory)
       layoutManager.layoutChanged.connect(self.onLayoutChanged)
-      layout = ("""
-          <layout type="horizontal">
-           <item>
-            <idcbrowser></idcbrowser>
-           </item>
-          </layout>"""
-      )
       layoutNode = layoutManager.layoutLogic().GetLayoutNode()
-      layoutNode.AddLayoutDescription(self.IDCBrowserLayout, layout)
       self.currentViewArrangement = layoutNode.GetViewArrangement()
       self.previousViewArrangement = layoutNode.GetViewArrangement()
 
@@ -541,14 +552,11 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     if hasattr(self, 'pipOutdatedLibrariesOutputFile'):
       self.pipOutdatedLibrariesOutputFile.close()
     layoutManager = slicer.app.layoutManager()
-    if layoutManager:
-      if hasattr(self, 'viewFactory'):
-        layoutManager.unregisterViewFactory(self.viewFactory)
-      if hasattr(self, 'onLayoutChanged'):
-        try:
-          layoutManager.layoutChanged.disconnect(self.onLayoutChanged)
-        except RuntimeError:
-          pass
+    if layoutManager and hasattr(self, 'onLayoutChanged'):
+      try:
+        layoutManager.layoutChanged.disconnect(self.onLayoutChanged)
+      except RuntimeError:
+        pass
 
   def onShowBrowserButton(self):
     if self.showBrowserButton.checked:
