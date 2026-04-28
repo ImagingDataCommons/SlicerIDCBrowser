@@ -144,12 +144,17 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
       dicomDatabase.updateSchemaIfNeeded()
 
     databaseDirectory = dicomDatabase.databaseDirectory
-    self.storagePath = self.settings.value("IDCCustomStoragePath")  if self.settings.contains("IDCCustomStoragePath") else databaseDirectory + "/IDCLocal/"
+    defaultStoragePath = os.path.join(databaseDirectory, "IDCLocal")
+    self.storagePath = self.settings.value("IDCCustomStoragePath") if self.settings.contains("IDCCustomStoragePath") else defaultStoragePath
     logging.debug("IDC downloaded data storage path: " + self.storagePath)
-    if not os.path.exists(self.storagePath):
-      os.makedirs(self.storagePath)
+    try:
+      os.makedirs(self.storagePath, exist_ok=True)
+    except OSError:
+      logging.warning(f"Could not create storage path {self.storagePath}, falling back to default")
+      self.storagePath = defaultStoragePath
+      os.makedirs(self.storagePath, exist_ok=True)
     if not self.settings.contains("IDCDefaultStoragePath"):
-      self.settings.setValue("IDCDefaultStoragePath", (databaseDirectory + "/IDCLocal/"))
+      self.settings.setValue("IDCDefaultStoragePath", defaultStoragePath)
 
     self.cachePath = self.storagePath + "/ServerResponseCache/"
     logging.debug("IDC cache path: " + self.cachePath)
