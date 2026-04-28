@@ -80,12 +80,13 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     from idc_index import index
 
     qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
-
-    logging.info("Initializing IDC client ...")
-    startTime = time.time()
-    self.IDCClient = index.IDCClient()
-    logging.info("IDC Client initialized in {0:.2f} seconds.".format(time.time() - startTime))
-    qt.QApplication.restoreOverrideCursor()
+    try:
+      logging.info("Initializing IDC client ...")
+      startTime = time.time()
+      self.IDCClient = index.IDCClient()
+      logging.info("IDC Client initialized in {0:.2f} seconds.".format(time.time() - startTime))
+    finally:
+      qt.QApplication.restoreOverrideCursor()
 
     logging.debug("s5cmd path: " + self.IDCClient.s5cmdPath)
 
@@ -539,6 +540,15 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
       self.pipOutdatedLibrariesProc.terminate()
     if hasattr(self, 'pipOutdatedLibrariesOutputFile'):
       self.pipOutdatedLibrariesOutputFile.close()
+    layoutManager = slicer.app.layoutManager()
+    if layoutManager:
+      if hasattr(self, 'viewFactory'):
+        layoutManager.unregisterViewFactory(self.viewFactory)
+      if hasattr(self, 'onLayoutChanged'):
+        try:
+          layoutManager.layoutChanged.disconnect(self.onLayoutChanged)
+        except RuntimeError:
+          pass
 
   def onShowBrowserButton(self):
     if self.showBrowserButton.checked:
