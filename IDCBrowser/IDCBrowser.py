@@ -1384,7 +1384,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
       import traceback
       traceback.print_exc()
       self.clearStatus()
-      message = "downloadSelectedSeries: Failed to download " + str(error)
+      message = "Download failed.\n\n" + str(error)
       qt.QMessageBox.critical(slicer.util.mainWindow(),
                   'SlicerIDCBrowser', message, qt.QMessageBox.Ok)
 
@@ -1650,7 +1650,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
         self.IDCClient.download_from_manifest(manifestFile=filePath, downloadDir=downloadDir)
     except Exception as error:
       logging.error('Download from manifest failed: ' + str(error))
-      return
+      raise
     finally:
       self.hideProgressBar()
       slicer.app.processEvents()
@@ -1794,10 +1794,15 @@ class IDCBrowserFileReader:
     slicer.util.selectModule("IDCBrowser")
     slicer.app.processEvents()
     idcBrowserWidget = slicer.modules.idcbrowser.widgetRepresentation().self()
-    success = idcBrowserWidget.downloadFromManifestFile(fileName, idcBrowserWidget.storagePath)
+    try:
+      idcBrowserWidget.downloadFromManifestFile(fileName, idcBrowserWidget.storagePath)
+    except Exception as error:
+      message = "Download failed.\n\n" + str(error)
+      qt.QMessageBox.critical(slicer.util.mainWindow(), 'SlicerIDCBrowser', message, qt.QMessageBox.Ok)
+      return False
     slicer.app.processEvents()
     idcBrowserWidget.addFilesToDatabase(idcBrowserWidget.storagePath)
-    return success
+    return True
 
 class IDCBrowserTest(ScriptedLoadableModuleTest):
   """
