@@ -3,17 +3,12 @@ from __future__ import division
 
 # Standard library imports
 import codecs
-import csv
 import json
 import logging
 import os.path
 import pickle
-import string
 import sys
 import time
-import unittest
-import webbrowser
-import xml.etree.ElementTree as ET
 import zipfile
 from random import randint
 import tempfile
@@ -21,9 +16,7 @@ import inspect
 
 # Third-party imports
 import pydicom
-import pkg_resources
 import qt
-import urllib
 
 #slicer
 from __main__ import vtk, qt, ctk, slicer
@@ -87,12 +80,13 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     from idc_index import index
 
     qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
-
-    logging.info("Initializing IDC client ...")
-    startTime = time.time()
-    self.IDCClient = index.IDCClient()
-    logging.info("IDC Client initialized in {0:.2f} seconds.".format(time.time() - startTime))
-    qt.QApplication.restoreOverrideCursor()
+    try:
+      logging.info("Initializing IDC client ...")
+      startTime = time.time()
+      self.IDCClient = index.IDCClient()
+      logging.info("IDC Client initialized in {0:.2f} seconds.".format(time.time() - startTime))
+    finally:
+      qt.QApplication.restoreOverrideCursor()
 
     logging.debug("s5cmd path: " + self.IDCClient.s5cmdPath)
 
@@ -126,8 +120,6 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     # Flag to track if we're searching specifically for a series (to prevent auto-select all)
     self.isSearchingForSpecificSeries = False
 
-    item = qt.QStandardItem()
-
     # Put the files downloaded from IDC in the DICOM database folder by default.
     # This makes downloaded files relocatable along with the DICOM database in
     # recent Slicer versions.
@@ -156,22 +148,19 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     if not self.settings.contains("IDCDefaultStoragePath"):
       self.settings.setValue("IDCDefaultStoragePath", defaultStoragePath)
 
-    self.cachePath = self.storagePath + "/ServerResponseCache/"
+    self.cachePath = os.path.join(self.storagePath, "ServerResponseCache")
     logging.debug("IDC cache path: " + self.cachePath)
-    self.downloadedSeriesArchiveFile = self.storagePath + 'archive.p'
+    self.downloadedSeriesArchiveFile = os.path.join(self.storagePath, 'archive.p')
     if os.path.isfile(self.downloadedSeriesArchiveFile):
-      print("Reading "+self.downloadedSeriesArchiveFile)
-      f = open(self.downloadedSeriesArchiveFile, 'rb')
-      self.previouslyDownloadedSeries = pickle.load(f)
-      f.close()
+      logging.debug("Reading " + self.downloadedSeriesArchiveFile)
+      with open(self.downloadedSeriesArchiveFile, 'rb') as f:
+        self.previouslyDownloadedSeries = pickle.load(f)
     else:
       with open(self.downloadedSeriesArchiveFile, 'wb') as f:
         self.previouslyDownloadedSeries = []
         pickle.dump(self.previouslyDownloadedSeries, f)
-      f.close()
 
-    if not os.path.exists(self.cachePath):
-      os.makedirs(self.cachePath)
+    os.makedirs(self.cachePath, exist_ok=True)
     self.useCacheFlag = False
 
     # Load icons
@@ -373,20 +362,31 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.currentViewArrangement = 0
     self.previousViewArrangement = 0
     self.IDCBrowserLayout = slicer.vtkMRMLLayoutNode.SlicerLayoutUserView + 53
-    self.viewFactory = slicer.qSlicerSingletonViewFactory()
-    self.viewFactory.setTagName("idcbrowser")
+
+    # Reuse the view factory across reloads: unregisterViewFactory is not
+    # exposed in the Python binding, so creating a new factory on each reload
+    # would accumulate stale registrations and break the browser view.
+    if hasattr(slicer.modules, '_IDCBrowserViewFactory'):
+      self.viewFactory = slicer.modules._IDCBrowserViewFactory
+    else:
+      self.viewFactory = slicer.qSlicerSingletonViewFactory()
+      self.viewFactory.setTagName("idcbrowser")
+      if layoutManager:
+        layoutManager.registerViewFactory(self.viewFactory)
+        layout = ("""
+            <layout type="horizontal">
+             <item>
+              <idcbrowser></idcbrowser>
+             </item>
+            </layout>"""
+        )
+        layoutNode = layoutManager.layoutLogic().GetLayoutNode()
+        layoutNode.AddLayoutDescription(self.IDCBrowserLayout, layout)
+      slicer.modules._IDCBrowserViewFactory = self.viewFactory
+
     if layoutManager:
-      layoutManager.registerViewFactory(self.viewFactory)
       layoutManager.layoutChanged.connect(self.onLayoutChanged)
-      layout = ("""
-          <layout type="horizontal">
-           <item>
-            <idcbrowser></idcbrowser>
-           </item>
-          </layout>"""
-      )
       layoutNode = layoutManager.layoutLogic().GetLayoutNode()
-      layoutNode.AddLayoutDescription(self.IDCBrowserLayout, layout)
       self.currentViewArrangement = layoutNode.GetViewArrangement()
       self.previousViewArrangement = layoutNode.GetViewArrangement()
 
@@ -452,7 +452,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
       self.updateRequiredWidget.hide()
 
   def onUpdateAndRestartButton(self):
-    with slicer.util.displayPythonShell() as shell, slicer.util.tryWithErrorDisplay(message="Failed to update idc-index.", waitCursor=True):
+    with slicer.util.displayPythonShell() as _, slicer.util.tryWithErrorDisplay(message="Failed to update idc-index.", waitCursor=True):
       slicer.util.pip_install("--no-cache-dir --upgrade idc-index")
       self.settings.setValue("IDCBrowser/PipUpdateRequested", False)
       slicer.util.restart()
@@ -543,7 +543,20 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
               self.dataProbeHasBeenTemporarilyHidden = False
 
   def cleanup(self):
-    pass
+    if hasattr(self, 'searchDebounceTimer'):
+      self.searchDebounceTimer.stop()
+    if hasattr(self, 'pythonRequirementsCheckTimer'):
+      self.pythonRequirementsCheckTimer.stop()
+    if hasattr(self, 'pipOutdatedLibrariesProc') and self.pipOutdatedLibrariesProc.poll() is None:
+      self.pipOutdatedLibrariesProc.terminate()
+    if hasattr(self, 'pipOutdatedLibrariesOutputFile'):
+      self.pipOutdatedLibrariesOutputFile.close()
+    layoutManager = slicer.app.layoutManager()
+    if layoutManager and hasattr(self, 'onLayoutChanged'):
+      try:
+        layoutManager.layoutChanged.disconnect(self.onLayoutChanged)
+      except RuntimeError:
+        pass
 
   def onShowBrowserButton(self):
     if self.showBrowserButton.checked:
@@ -747,15 +760,6 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     finally:
       self.isSearchingForSpecificSeries = False
 
-  def onUseCacheStateChanged(self, state):
-    if state == 0:
-      self.useCacheFlag = False
-    elif state == 2:
-      self.useCacheFlag = True
-
-  def onContextMenuTriggered(self):
-    self.clinicalPopup.getData(self.selectedCollection, self.selectedPatient)
-
   def onRemoveSeriesContextMenuTriggered(self):
     removeList = []
     for uid in self.seriesInstanceUIDs:
@@ -763,14 +767,12 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
         removeList.append(uid.text())
     with open(self.downloadedSeriesArchiveFile, 'rb') as f:
       self.previouslyDownloadedSeries = pickle.load(f)
-    f.close()
     updatedDownloadSeries = []
     for item in self.previouslyDownloadedSeries:
       if item not in removeList:
         updatedDownloadSeries.append(item)
     with open(self.downloadedSeriesArchiveFile, 'wb') as f:
-      pickle.dump(updatedDownloadSeries,f)
-    f.close()
+      pickle.dump(updatedDownloadSeries, f)
     self.previouslyDownloadedSeries = updatedDownloadSeries
     self.studiesTableSelectionChanged()
 
@@ -806,7 +808,11 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.storageResetButton.enabled = True
 
   def onStorageResetButton(self):
-    self.storagePath = self.settings.value("IDCDefaultStoragePath")
+    defaultPath = self.settings.value("IDCDefaultStoragePath")
+    if not defaultPath:
+      logging.warning("IDCDefaultStoragePath setting is missing; cannot reset storage path")
+      return
+    self.storagePath = defaultPath
     self.settings.remove("IDCCustomStoragePath")
     self.storageResetButton.enabled = False
     self.storagePathButton.directory = self.storagePath
@@ -822,7 +828,6 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
       self.clearStatus()
 
     except Exception as error:
-      self.connectButton.enabled = True
       self.clearStatus()
       message = "getCollectionValues: Error in getting response from IDC server.\nHTTP Error:\n" + str(error)
       qt.QMessageBox.critical(slicer.util.mainWindow(),
@@ -874,7 +879,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
       self.logoLabel.setText("IDC release " + self.logic.idc_version)
       return
 
-    cacheFile = self.cachePath + self.selectedCollection + '.json'
+    cacheFile = os.path.join(self.cachePath, self.selectedCollection + '.json')
     self.progressMessage = "Getting available patients for collection: " + self.selectedCollection
 
     # make collection summary
@@ -939,7 +944,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     # self.clearStudiesTableWidget()
     self.clearSeriesTableWidget()
     self.selectedPatient = self.patientsIDs[row].text()
-    cacheFile = self.cachePath + self.selectedPatient + '.json'
+    cacheFile = os.path.join(self.cachePath, self.selectedPatient + '.json')
     self.progressMessage = "Getting available studies for patient ID: " + self.selectedPatient
     self.showStatus(self.progressMessage)
     if os.path.isfile(cacheFile) and self.useCacheFlag:
@@ -998,7 +1003,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.selectedStudyRow = row
     self.progressMessage = "Getting available series for studyInstanceUID: " + self.selectedStudy
     self.showStatus(self.progressMessage)
-    cacheFile = self.cachePath + self.selectedStudy + '.json'
+    cacheFile = os.path.join(self.cachePath, self.selectedStudy + '.json')
     if os.path.isfile(cacheFile) and self.useCacheFlag:
       logging.debug("studySelected: using cache file: " + cacheFile)
       f = codecs.open(cacheFile, 'rb', encoding='utf8')
@@ -1154,7 +1159,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
           try:
             loadables = plugin.examine([fileList])
-          except Exception as error:
+          except Exception:
             failedSeriesCount += 1
 
           self.clearStatus()
@@ -1344,13 +1349,15 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
 
       # write manifest to a temporary file
       manifest_file = tempfile.NamedTemporaryFile(delete=False, mode='w')
+      manifest_file_path = manifest_file.name
       manifest_file.write(manifestContents)
       manifest_file.close()
-      logging.debug("Manifest file created: " + manifest_file.name)
+      logging.debug("Manifest file created: " + manifest_file_path)
 
-      self.downloadFromManifestFile(manifest_file.name, self.storagePath)
-
-      os.remove(manifest_file.name)
+      try:
+        self.downloadFromManifestFile(manifest_file_path, self.storagePath)
+      finally:
+        os.remove(manifest_file_path)
       slicer.app.processEvents()
       logging.debug("Downloaded images in %s seconds" % (time.time() - start_time))
 
@@ -1377,7 +1384,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
       import traceback
       traceback.print_exc()
       self.clearStatus()
-      message = "downloadSelectedSeries: Failed to download " + str(error)
+      message = "Download failed.\n\n" + str(error)
       qt.QMessageBox.critical(slicer.util.mainWindow(),
                   'SlicerIDCBrowser', message, qt.QMessageBox.Ok)
 
@@ -1389,9 +1396,6 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.collectionSelector.enabled = True
     self.patientsTableWidget.enabled = True
     self.studiesTableWidget.enabled = True
-
-  def stringBufferReadWrite(self, dstFile, responseString, bufferSize=819):
-      dstFile.write(responseString)
 
   def updateProgressBar(self, currentValue, totalValue, unit="B", description=""):
     units = ["B", "kB", "MB", "GB", "TB", "PB", "EB", "ZB"]
@@ -1423,7 +1427,7 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
         try:
           dcm = pydicom.read_file(os.path.join(path,words[-1]))
           totalItems = totalItems + 1
-        except:
+        except Exception:
           pass
     logging.debug("Total %i DICOM items extracted from image archive." % totalItems)
     return totalItems
@@ -1645,10 +1649,8 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
       else:
         self.IDCClient.download_from_manifest(manifestFile=filePath, downloadDir=downloadDir)
     except Exception as error:
-      self.download_status.setText('Download from manifest failed.')
-      logging.error('Download from manifest failed.')
-      logging.error(error)
-      return
+      logging.error('Download from manifest failed: ' + str(error))
+      raise
     finally:
       self.hideProgressBar()
       slicer.app.processEvents()
@@ -1677,7 +1679,7 @@ class IDCBrowserLogic(ScriptedLoadableModuleLogic):
       import idc_index
     except ModuleNotFoundError:
       logging.info("The module requires idc-index python package, which will now be installed.")
-      with slicer.util.displayPythonShell() as shell, slicer.util.tryWithErrorDisplay(message="Failed to install idc-index.", waitCursor=True):
+      with slicer.util.displayPythonShell() as _, slicer.util.tryWithErrorDisplay(message="Failed to install idc-index.", waitCursor=True):
         slicer.util.pip_install("idc-index")
 
     from idc_index import index
@@ -1691,18 +1693,15 @@ class IDCBrowserLogic(ScriptedLoadableModuleLogic):
     node has valid image data
     """
     if not volumeNode:
-      print('no volume node')
+      logging.warning('no volume node')
       return False
     if volumeNode.GetImageData() == None:
-      print('no image data')
+      logging.warning('no image data')
       return False
     return True
 
   def delayDisplay(self, message, msec=1000):
-    #
-    # logic version of delay display
-    #
-    print(message)
+    logging.debug(message)
     self.info = qt.QDialog()
     self.infoLayout = qt.QVBoxLayout()
     self.info.setLayout(self.infoLayout)
@@ -1751,10 +1750,10 @@ class IDCBrowserLogic(ScriptedLoadableModuleLogic):
 
   def run(self, inputVolume, outputVolume, enableScreenshots=0, screenshotScaleFactor=1):
     """
-    Run the actual algorithm
+    Run the actual task
     """
 
-    self.delayDisplay('Running the aglorithm')
+    self.delayDisplay('Running the task')
 
     self.enableScreenshots = enableScreenshots
     self.screenshotScaleFactor = screenshotScaleFactor
@@ -1795,10 +1794,15 @@ class IDCBrowserFileReader:
     slicer.util.selectModule("IDCBrowser")
     slicer.app.processEvents()
     idcBrowserWidget = slicer.modules.idcbrowser.widgetRepresentation().self()
-    success = idcBrowserWidget.downloadFromManifestFile(fileName, idcBrowserWidget.storagePath)
+    try:
+      idcBrowserWidget.downloadFromManifestFile(fileName, idcBrowserWidget.storagePath)
+    except Exception as error:
+      message = "Download failed.\n\n" + str(error)
+      qt.QMessageBox.critical(slicer.util.mainWindow(), 'SlicerIDCBrowser', message, qt.QMessageBox.Ok)
+      return False
     slicer.app.processEvents()
     idcBrowserWidget.addFilesToDatabase(idcBrowserWidget.storagePath)
-    return success
+    return True
 
 class IDCBrowserTest(ScriptedLoadableModuleTest):
   """
