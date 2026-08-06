@@ -21,7 +21,6 @@ import inspect
 
 # Third-party imports
 import pydicom
-import pkg_resources
 import qt
 import urllib
 
