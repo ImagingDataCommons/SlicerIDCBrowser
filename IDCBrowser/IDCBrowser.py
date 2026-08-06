@@ -859,6 +859,10 @@ class IDCBrowserWidget(ScriptedLoadableModuleWidget):
     self.tabWidget.tabBar().setVisible(showWebWidget)
 
   def collectionSelected(self, item):
+    if not item:
+      # currentIndexChanged briefly fires with an empty string when
+      # populateCollectionsTreeView forces a selection change via setCurrentIndex(-1)
+      return
     self.loadButton.enabled = False
     self.indexButton.enabled = False
     self.clearPatientsTableWidget()
